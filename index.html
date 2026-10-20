@@ -3,220 +3,81 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>US Patent Library</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<style>
-:root{--bg:#f6f7f9;--panel:#fff;--text:#1b1f24;--muted:#6b7480;--border:#e1e4e8;--accent:#1f5fbf;--soft:#e9f0fb;--bad:#b42318}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121417;--panel:#1b1e23;--text:#e6e8eb;--muted:#9aa3ad;--border:#2e333a;--accent:#6ea2f5;--soft:#1d2a3f;--bad:#f2867c}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,"Segoe UI",sans-serif}
-.wrap{max-width:1200px;margin:0 auto;padding:20px 16px}
-header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}
-h1{font-size:20px;margin:0}
-.sub{color:var(--muted);font-size:12px}
-input,select,textarea,button{font:inherit;color:var(--text)}
-input,select{padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:var(--panel)}
-button{border:1px solid var(--border);background:var(--panel);padding:7px 12px;border-radius:6px;cursor:pointer}
-button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
-.bar .grow{flex:1;min-width:180px}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
-.chip{display:flex;align-items:center;gap:4px;padding:5px 6px 5px 11px;border:1px solid var(--border);border-radius:16px;background:var(--panel);cursor:pointer}
-.chip.active{background:var(--soft);border-color:var(--accent)}
-.chip span{color:var(--muted);font-size:12px}
-.chip b{font-weight:500}
-.chip button{border:none;background:none;padding:0 4px;color:var(--muted)}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:14px}
-.card h3{margin:0 0 8px;font-size:15px}
-.card h3 small{color:var(--muted);font-weight:400}
-table{border-collapse:collapse;width:100%}
-th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top}
-tr:last-child td{border-bottom:none}
-th{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600}
-td.pn{font-family:ui-monospace,Consolas,monospace;white-space:nowrap}
-td.exp{white-space:nowrap}
-td.note{width:65%}
-textarea{width:100%;min-height:34px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);resize:vertical}
-.expired{color:var(--bad)}
-.ped{display:block;font-size:11px;color:var(--muted)}
-.empty{color:var(--bad)}
-.muted{color:var(--muted)}
-</style>
+<title>US Patent Database</title>
+<link rel="stylesheet" href="/assets/style.css">
 </head>
-<body>
-<div class="wrap">
-  <header>
-    <div><h1>US Patent Library</h1><div class="sub" id="meta">FDA Orange Book</div></div>
-    <div class="bar" style="margin:0"><button id="btnRefresh">Verileri güncelle</button><button class="primary" id="btnExport">Excel'e aktar</button></div>
-  </header>
+<body class="gated">
+<main>
+  <div class="hero">
+    <h1>US Patent Database</h1>
+    <div class="muted">FDA Orange Book patent kütüphanesi</div>
 
-  <div class="bar">
-    <input class="grow" id="inIng" placeholder="Molekül ekle — örn. Sitagliptin + Metformin">
-    <input id="inForm" placeholder="Form (ops.) — örn. EXTENDED RELEASE" style="width:240px">
-    <button id="btnAdd">Ekle</button>
+    <div class="search">
+      <input id="q" placeholder="Molekül ara — örn. Semaglutide" autocomplete="off">
+      <div class="results" id="res" hidden></div>
+    </div>
+
+    <div class="row" style="justify-content:center">
+      <button class="primary" id="btnNew">Yeni analiz yap</button>
+      <a class="btn" href="/library.html">US Patent Kütüphanesi →</a>
+    </div>
+
+    <form class="card panel" id="newPanel" hidden>
+      <label for="ing">Etken madde(ler) — kombinasyonlar için "+" ile ayırın</label>
+      <input id="ing" placeholder="örn. Sitagliptin + Metformin">
+      <label for="form">Dozaj formu (opsiyonel)</label>
+      <input id="form" placeholder="örn. EXTENDED RELEASE">
+      <div class="row" style="margin-top:14px"><button class="primary">Analiz et</button><span class="err" id="newMsg"></span></div>
+    </form>
   </div>
-  <div class="chips" id="mols"></div>
-
-  <div class="bar">
-    <input class="grow" id="fText" placeholder="Patent no veya ürün ara">
-    <select id="fBrand"></select>
-    <label class="muted"><input type="checkbox" id="fHideExp"> Süresi dolanları gizle</label>
-  </div>
-  <div id="out"></div>
-</div>
-
+</main>
+<script src="/assets/app.js"></script>
 <script>
-const API = 'https://api.fda.gov/drug/orangebook.json';
-const DEFAULTS = [
-  {id:'m1', label:'Empagliflozin + Linagliptin + Metformin (XR)', ingredients:['EMPAGLIFLOZIN','LINAGLIPTIN','METFORMIN'], form:'EXTENDED RELEASE'},
-  {id:'m2', label:'Nifedipine + Lidocaine', ingredients:['NIFEDIPINE','LIDOCAINE'], form:''},
-  {id:'m3', label:'Semaglutide', ingredients:['SEMAGLUTIDE'], form:''},
-];
-const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch(e) { return d; } };
-const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} };
-let mols = load('uspl.molecules.v1', DEFAULTS), data = load('uspl.data.v2', {}), notes = load('uspl.notes.v1', {});
-let active = mols[0] && mols[0].id;
-const busy = new Set();
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const fmtDate = d => d ? `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}` : '';
-const unit = s => s.replace(/(\d)\s*GM\b/g,'$1 g').replace(/(\d)\s*MCG\b/g,'$1 mcg').replace(/(\d)\s*MG\b/g,'$1 mg').replace(/(\d)\s*ML\b/g,'$1 mL').replace(/\/ML\b/g,'/mL');
-const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+let mols = [], sel = -1;
 
-async function fetchMol(m){
-  const q = m.ingredients.map(i => `products.active_ingredients.name:"${i}"`).join(' AND ');
-  let recs = [], skip = 0, total = 0, updated = '';
-  do {
-    const r = await fetch(`${API}?search=${encodeURIComponent(q)}&limit=1000&skip=${skip}`), j = await r.json();
-    if (r.status === 404) break;
-    if (!r.ok) throw new Error(j.error?.message || 'HTTP ' + r.status);
-    total = j.meta.results.total; updated = j.meta.last_updated; recs = recs.concat(j.results); skip += j.results.length;
-  } while (skip < total);
-  return {at:new Date().toISOString(), updated, recs};
-}
-async function refresh(id){
-  const m = mols.find(x => x.id === id); if (!m) return;
-  busy.add(id); render();
-  try { data[id] = await fetchMol(m); } catch(e) { data[id] = {...(data[id] || {recs:[]}), error:e.message}; }
-  busy.delete(id); save('uspl.data.v2', data); render();
-}
+(async () => {
+  if (!(await boot('home'))) return;
+  if (param('new')) openNew();
+  mols = await api('/api/molecules');
+})();
 
-// Exact ingredient combination (+ optional dosage form) -> products (Brand + NDA) with deduplicated patents
-function build(m){
-  const d = data[m.id]; if (!d) return null;
-  const has = (spec, name) => name.toUpperCase().split(/\W+/).includes(spec) || name.toUpperCase().startsWith(spec);
-  const groups = new Map();
-  for (const r of d.recs){
-    const p = r.products[0], ings = p.active_ingredients || [];
-    if (ings.length !== m.ingredients.length || !m.ingredients.every(s => ings.some(i => has(s, i.name)))) continue;
-    if (m.form && !(p.dosage_form || '').toUpperCase().includes(m.form)) continue;
-    const key = p.brand_name + ' · ' + p.application_type + p.application_number;
-    if (!groups.has(key)) groups.set(key, {key, brand:p.brand_name, nda:p.application_type + p.application_number, doses:[], pats:new Map()});
-    const g = groups.get(key), dose = {no:r.product_number, str:ings.map(i => unit(i.strength)).join(' / ')};
-    g.doses.push(dose);
-    for (const pt of r.patents || []){
-      const base = pt.patent_number.replace(/\*.*$/, ''), ped = /\*PED/i.test(pt.patent_number);
-      if (!g.pats.has(base)) g.pats.set(base, {pn:base, exp:'', ped:'', doses:new Map()});
-      const e = g.pats.get(base);
-      if (ped) e.ped = pt.expiration_date > e.ped ? pt.expiration_date : e.ped;
-      else { e.exp = pt.expiration_date > e.exp ? pt.expiration_date : e.exp; e.doses.set(r.product_number, dose); }
-    }
-  }
-  return [...groups.values()].sort((a,b) => a.key.localeCompare(b.key)).map(g => {
-    g.doses.sort((a,b) => a.no.localeCompare(b.no));
-    g.patents = [...g.pats.values()].map(e => {
-      const ds = [...e.doses.values()].sort((a,b) => a.no.localeCompare(b.no));
-      return {...e, doseText: ds.length === g.doses.length ? 'Tüm dozlar' : ds.map(x => x.str).join(', ')};
-    }).sort((a,b) => a.exp.localeCompare(b.exp) || a.pn.localeCompare(b.pn));
-    return g;
-  });
+function openNew(prefill) {
+  $('newPanel').hidden = false;
+  if (prefill) $('ing').value = prefill;
+  $('ing').focus();
 }
-function view(groups){
-  const t = $('fText').value.trim().toUpperCase().replace(/^US\s*/, ''), b = $('fBrand').value, hide = $('fHideExp').checked;
-  return groups.filter(g => !b || g.key === b).map(g => {
-    const hit = t && g.key.toUpperCase().includes(t);
-    return {...g, patents:g.patents.filter(p => (!hide || (p.ped || p.exp) >= today) && (!t || hit || p.pn.includes(t)))};
-  }).filter(g => !t || g.patents.length);
-}
-
-function render(){
-  $('mols').innerHTML = mols.map(m => {
-    const g = build(m), info = busy.has(m.id) ? '…' : !g ? '' : data[m.id].error ? 'hata' : g.length ? g.length + ' ürün' : 'Orange Book\'ta yok';
-    return `<div class="chip ${m.id === active ? 'active' : ''}" data-id="${m.id}"><b>${esc(m.label)}</b> <span>${info}</span><button data-del="${m.id}" title="Kaldır">✕</button></div>`;
-  }).join('');
-  const m = mols.find(x => x.id === active), out = $('out');
-  if (!m) { out.innerHTML = '<p class="muted">Bir molekül ekleyin.</p>'; return; }
-  const d = data[m.id], groups = build(m);
-  $('meta').textContent = d?.updated ? `FDA Orange Book · son güncelleme ${d.updated} · çekildi ${new Date(d.at).toLocaleString('tr-TR')}` : 'FDA Orange Book';
-  if (!groups) { out.innerHTML = '<p class="muted">Yükleniyor…</p>'; return; }
-  const sel = $('fBrand'), cur = sel.value;
-  sel.innerHTML = '<option value="">Tüm ürünler</option>' + groups.map(g => `<option>${esc(g.key)}</option>`).join('');
-  sel.value = groups.some(g => g.key === cur) ? cur : '';
-  let html = d.error ? `<p class="empty">API hatası: ${esc(d.error)}</p>` : '';
-  if (!groups.length && !d.error) html += `<div class="card empty"><b>${esc(m.label)}</b> FDA Orange Book'ta bulunamadı — listelenmiş ürün ve US patenti yok.</div>`;
-  for (const g of view(groups)){
-    html += `<div class="card"><h3>${esc(g.brand)} <small>· ${esc(g.nda)} · ${g.doses.map(x => esc(x.str)).join(', ')}</small></h3>`;
-    if (!g.patents.length) { html += '<p class="muted">Listelenmiş patent yok.</p></div>'; continue; }
-    html += '<table><thead><tr><th>US Patent No.</th><th>Expiration Date</th><th>Patent Yorumu</th></tr></thead><tbody>';
-    for (const p of g.patents){
-      html += `<tr><td class="pn">US ${esc(p.pn)}</td>
-        <td class="exp ${(p.ped || p.exp) < today ? 'expired' : ''}">${fmtDate(p.exp)}${p.ped ? `<span class="ped">PED: ${fmtDate(p.ped)}</span>` : ''}</td>
-        <td class="note"><textarea data-pn="${esc(p.pn)}" placeholder="Yorum ekle…">${esc(notes[p.pn] || '')}</textarea></td></tr>`;
-    }
-    html += '</tbody></table></div>';
-  }
-  out.innerHTML = html;
-}
-
-function exportExcel(){
-  if (typeof XLSX === 'undefined') return alert('Excel kütüphanesi yüklenemedi.');
-  const rows = [];
-  for (const m of mols){
-    const groups = build(m);
-    if (groups && !groups.length) rows.push({'Molekül':m.label, 'Ürün':"FDA Orange Book'ta bulunamadı"});
-    for (const g of (m.id === active ? view(groups || []) : groups || []))
-      for (const p of g.patents) rows.push({'Molekül':m.label, 'Ürün':g.brand, 'NDA':g.nda, 'US Patent No.':'US ' + p.pn,
-        'Expiration Date':fmtDate(p.exp), 'PED Expiration':fmtDate(p.ped), 'Patent Yorumu':notes[p.pn] || ''});
-  }
-  const ws = XLSX.utils.json_to_sheet(rows), wb = XLSX.utils.book_new();
-  ws['!cols'] = [36,20,10,14,14,14,60].map(w => ({wch:w}));
-  XLSX.utils.book_append_sheet(wb, ws, 'Patents');
-  XLSX.writeFile(wb, `US_Patent_Library_${new Date().toISOString().slice(0,10)}.xlsx`);
-}
-
-$('mols').addEventListener('click', e => {
-  const del = e.target.closest('[data-del]'), chip = e.target.closest('.chip');
-  if (del) {
-    const m = mols.find(x => x.id === del.dataset.del);
-    if (!confirm(`“${m.label}” kaldırılsın mı?`)) return;
-    mols = mols.filter(x => x !== m); delete data[m.id]; save('uspl.molecules.v1', mols); save('uspl.data.v2', data);
-    if (active === m.id) active = mols[0]?.id;
-    return render();
-  }
-  if (chip) { active = chip.dataset.id; $('fBrand').value = ''; render(); if (!data[active]) refresh(active); }
-});
-$('btnAdd').onclick = () => {
-  const raw = $('inIng').value.trim(); if (!raw) return;
-  const parts = raw.split('+').map(s => s.trim()).filter(Boolean), form = $('inForm').value.trim().toUpperCase();
-  const m = {id:'m' + Date.now(), label:parts.join(' + ') + (form ? ` (${form.toLowerCase()})` : ''), ingredients:parts.map(s => s.toUpperCase()), form};
-  mols.push(m); save('uspl.molecules.v1', mols); active = m.id; $('inIng').value = $('inForm').value = '';
-  refresh(m.id);
+$('btnNew').onclick = () => openNew();
+$('newPanel').onsubmit = async e => {
+  e.preventDefault();
+  $('newMsg').textContent = '';
+  try { await addMolecule($('ing').value, $('form').value.trim()); } catch (err) { $('newMsg').textContent = err.message; }
 };
-$('inIng').onkeydown = e => { if (e.key === 'Enter') $('btnAdd').click(); };
-$('btnRefresh').onclick = async () => { for (const m of mols) await refresh(m.id); };
-$('btnExport').onclick = exportExcel;
-$('fText').oninput = $('fBrand').onchange = $('fHideExp').onchange = render;
-// Comments are stored per patent number, so the same patent shows the same comment under every product
-$('out').addEventListener('input', e => {
-  if (!e.target.dataset.pn) return;
-  const pn = e.target.dataset.pn, v = e.target.value;
-  if (v.trim()) notes[pn] = v; else delete notes[pn];
-  save('uspl.notes.v1', notes);
-  document.querySelectorAll(`textarea[data-pn="${pn}"]`).forEach(t => { if (t !== e.target) t.value = v; });
-});
 
-render();
-for (const m of mols) if (!data[m.id]) refresh(m.id);
+function matches() {
+  const t = $('q').value.trim().toLowerCase();
+  return t ? mols.filter(m => m.label.toLowerCase().includes(t) || m.ingredients.some(i => i.toLowerCase().includes(t))) : [];
+}
+function showResults() {
+  const t = $('q').value.trim(), list = matches().slice(0, 8);
+  if (!t) { $('res').hidden = true; return; }
+  $('res').hidden = false;
+  $('res').innerHTML = list.map((m, i) => `<a href="/molecule.html?id=${encodeURIComponent(m.id)}" class="${i === sel ? 'sel' : ''}">${esc(m.label)}</a>`).join('')
+    + (list.length ? '' : `<div class="muted">Kütüphanede bulunamadı.</div>`)
+    + `<a href="#" id="resNew">“${esc(t)}” için yeni analiz yap →</a>`;
+  $('resNew').onclick = e => { e.preventDefault(); $('res').hidden = true; openNew(t); };
+}
+$('q').oninput = () => { sel = -1; showResults(); };
+$('q').onkeydown = e => {
+  const list = matches().slice(0, 8);
+  if (e.key === 'ArrowDown') { sel = Math.min(sel + 1, list.length - 1); showResults(); e.preventDefault(); }
+  if (e.key === 'ArrowUp') { sel = Math.max(sel - 1, -1); showResults(); e.preventDefault(); }
+  if (e.key === 'Escape') $('res').hidden = true;
+  if (e.key === 'Enter') {
+    const m = list[sel] || (list.length === 1 && list[0]);
+    location.href = m ? '/molecule.html?id=' + encodeURIComponent(m.id) : '/library.html?q=' + encodeURIComponent($('q').value.trim());
+  }
+};
+document.addEventListener('click', e => { if (!e.target.closest('.search')) $('res').hidden = true; });
 </script>
 </body>
 </html>

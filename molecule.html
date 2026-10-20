@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Molekül · US Patent Database</title>
+<link rel="stylesheet" href="/assets/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="gated">
+<main>
+  <div class="muted" style="margin-bottom:6px"><a href="/library.html">← US Patent Kütüphanesi</a></div>
+  <div class="head">
+    <div><h1 id="title">…</h1><div class="muted" id="meta"></div></div>
+    <div class="row">
+      <button id="btnRefresh">Verileri güncelle</button>
+      <button class="primary" id="btnExport">Excel'e aktar</button>
+      <button class="danger" id="btnDelete">Sil</button>
+    </div>
+  </div>
+  <div class="row" style="margin-bottom:14px">
+    <input class="grow" id="fText" placeholder="Patent no veya ürün ara">
+    <select id="fBrand"></select>
+    <label class="muted"><input type="checkbox" id="fHideExp"> Süresi dolanları gizle</label>
+  </div>
+  <div id="out"><p class="muted">Yükleniyor…</p></div>
+</main>
+<script src="/assets/app.js"></script>
+<script>
+let mol, data, notes = {};
+const timers = {};
+
+(async () => {
+  if (!(await boot('library'))) return;
+  const [mols, n] = await Promise.all([api('/api/molecules'), api('/api/notes')]);
+  mol = mols.find(m => m.id === param('id'));
+  if (!mol) { $('out').innerHTML = '<p>Molekül bulunamadı. <a href="/library.html">Kütüphaneye dön</a></p>'; return; }
+  notes = n;
+  document.title = mol.label + ' · US Patent Database';
+  $('title').textContent = mol.label;
+  await load(false);
+})();
+
+async function load(force) {
+  $('out').innerHTML = '<p class="muted">FDA Orange Book sorgulanıyor…</p>';
+  try { data = await loadFda(mol, force); }
+  catch (e) { $('out').innerHTML = `<p class="err">FDA API hatası: ${esc(e.message)}</p>`; return; }
+  $('meta').textContent = `FDA Orange Book · son güncelleme ${data.updated || '—'} · çekildi ${fmtTs(data.at)}`;
+  const sel = $('fBrand');
+  sel.innerHTML = '<option value="">Tüm ürünler</option>' + data.groups.map(g => `<option>${esc(g.key)}</option>`).join('');
+  render();
+  // Keep the library list's product/patent counts in step with what this page shows
+  const s = { products: data.groups.length, patents: data.groups.reduce((a, g) => a + g.patents.length, 0), fetchedAt: data.at }, o = mol.summary || {};
+  if (o.products !== s.products || o.patents !== s.patents || o.fetchedAt !== s.fetchedAt) {
+    mol.summary = s;
+    api('/api/molecules?id=' + encodeURIComponent(mol.id), { method: 'PATCH', body: { summary: s } }).catch(() => {});
+  }
+}
+
+function view() {
+  const t = $('fText').value.trim().toUpperCase().replace(/^US\s*/, ''), b = $('fBrand').value, hide = $('fHideExp').checked;
+  return data.groups.filter(g => !b || g.key === b).map(g => {
+    const hit = t && g.key.toUpperCase().includes(t);
+    return { ...g, patents: g.patents.filter(p => (!hide || (p.ped || p.exp) >= today) && (!t || hit || p.pn.includes(t))) };
+  }).filter(g => !t || g.patents.length);
+}
+
+function noteMeta(n) { return n ? `${esc(n.by)} · ${fmtTs(n.at)}` : ''; }
+
+function render() {
+  if (!data.groups.length) {
+    $('out').innerHTML = `<div class="card err"><b>${esc(mol.label)}</b> FDA Orange Book'ta bulunamadı — listelenmiş ürün ve US patenti yok.</div>`;
+    return;
+  }
+  let html = '';
+  for (const g of view()) {
+    html += `<div class="card"><h3>${esc(g.brand)} <small>· ${esc(g.nda)} · ${g.doses.map(esc).join(', ')}</small></h3>`;
+    if (!g.patents.length) { html += '<p class="muted">Listelenmiş patent yok.</p></div>'; continue; }
+    html += '<table><thead><tr><th>US Patent No.</th><th>Expiration Date</th><th>Patent Yorumu</th></tr></thead><tbody>';
+    for (const p of g.patents) {
+      const n = notes[p.pn];
+      html += `<tr><td class="pn">US ${esc(p.pn)}</td>
+        <td class="exp ${(p.ped || p.exp) < today ? 'expired' : ''}">${fmtDate(p.exp)}${p.ped ? `<span class="sub">PED: ${fmtDate(p.ped)}</span>` : ''}</td>
+        <td class="note"><textarea data-pn="${esc(p.pn)}" placeholder="Yorum ekle…">${esc(n?.text || '')}</textarea><span class="sub" data-meta="${esc(p.pn)}">${noteMeta(n)}</span></td></tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+  $('out').innerHTML = html || '<p class="muted">Filtrelere uyan sonuç yok.</p>';
+}
+
+// Comments save to the server shortly after typing stops; the same patent under other products updates too
+$('out').addEventListener('input', e => {
+  const pn = e.target.dataset.pn;
+  if (!pn) return;
+  const text = e.target.value;
+  document.querySelectorAll(`textarea[data-pn="${pn}"]`).forEach(t => { if (t !== e.target) t.value = text; });
+  document.querySelectorAll(`[data-meta="${pn}"]`).forEach(s => s.textContent = 'kaydediliyor…');
+  clearTimeout(timers[pn]);
+  timers[pn] = setTimeout(async () => {
+    try {
+      const r = await api('/api/notes', { method: 'PUT', body: { pn, text } });
+      if (r.note) notes[pn] = r.note; else delete notes[pn];
+      document.querySelectorAll(`[data-meta="${pn}"]`).forEach(s => s.textContent = noteMeta(notes[pn]));
+    } catch (err) {
+      document.querySelectorAll(`[data-meta="${pn}"]`).forEach(s => { s.textContent = 'kaydedilemedi: ' + err.message; s.classList.add('err'); });
+    }
+  }, 700);
+});
+
+$('fText').oninput = $('fBrand').onchange = $('fHideExp').onchange = () => data && render();
+$('btnRefresh').onclick = () => load(true);
+$('btnExport').onclick = () => data && downloadExcel(patentRows(mol, view(), notes), mol.label.replace(/[^\w]+/g, '_'));
+$('btnDelete').onclick = async () => {
+  if (!confirm(`“${mol.label}” kütüphaneden kaldırılsın mı? Patent yorumları silinmez.`)) return;
+  await api('/api/molecules?id=' + encodeURIComponent(mol.id), { method: 'DELETE' });
+  location.href = '/library.html';
+};
+</script>
+</body>
+</html>

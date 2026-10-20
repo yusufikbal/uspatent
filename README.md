@@ -1,22 +1,28 @@
-# US Patent Library
+# US Patent Database
 
-FDA Orange Book verilerinden ilaç moleküllerine ait ticari ürünleri ve US patentlerini listeleyen, tek dosyalık web uygulaması.
+FDA Orange Book verilerinden ilaç moleküllerine ait ticari ürünleri ve US patentlerini listeleyen, kullanıcı girişli web uygulaması. Vercel üzerinde çalışır.
 
-## Özellikler
+## Sayfalar
 
-- Veriler doğrudan FDA Orange Book API'sinden çekilir: `https://api.fda.gov/drug/orangebook.json`
-- Her ticari ürün (Brand + NDA) ayrı başlık altında; her patent tek satırda (US Patent No., Expiration Date)
-- Pediatrik uzatmalar (`*PED`) ilgili patentin altında gösterilir
-- Her patent için düzenlenebilir **Patent Yorumu** alanı (tarayıcıda saklanır)
-- Molekül ekleme, arama/filtreleme ve Excel'e aktarma
-- Orange Book'ta bulunmayan kombinasyonlar açıkça belirtilir
+- `login.html`: giriş ekranı
+- `index.html`: ana sayfa (molekül arama, yeni analiz, kütüphane bağlantısı)
+- `library.html`: US Patent Kütüphanesi, yani tüm moleküllerin listesi
+- `molecule.html?id=…`: bir molekülün ürünleri ve patentleri (US Patent No., Expiration Date, Patent Yorumu)
+- `profile.html`: ad/e-posta düzenleme ve şifre değiştirme
 
-## Kullanım
+## Mimari
 
-`index.html` dosyasını tarayıcıda açın. İnternet bağlantısı gerekir.
+- Patent verileri tarayıcıdan doğrudan FDA Orange Book API'sinden çekilir: `https://api.fda.gov/drug/orangebook.json`
+- `api/` altındaki Vercel fonksiyonları kullanıcıları, molekül listesini ve patent yorumlarını yönetir
+- Veriler Upstash Redis'te tutulur; yorumlar ve molekül listesi tüm kullanıcılar için ortaktır
+- Şifreler PBKDF2-SHA256 ile hash'lenir; oturum imzalı, HttpOnly bir çerezle tutulur
 
-İsteğe bağlı olarak yerel sunucu ile: `powershell -ExecutionPolicy Bypass -File serve.ps1` → http://localhost:8765/
+## Vercel ortam değişkenleri
 
-## Not
+| Değişken | Açıklama |
+|---|---|
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Upstash Redis entegrasyonu ekleyince Vercel bunları otomatik tanımlar (`UPSTASH_REDIS_REST_URL`/`_TOKEN` da desteklenir) |
+| `SESSION_SECRET` | Oturum çerezlerini imzalayan en az 32 karakterlik rastgele metin |
+| `SEED_USERS` | İlk kullanıcıların hash'lenmiş şifreleri (JSON). Kullanıcı ilk girişte veritabanına aktarılır; sonraki şifre değişiklikleri veritabanında tutulur |
 
-Yorumlar tarayıcının yerel depolamasında tutulur; başka tarayıcı veya bilgisayara taşınmaz. Yedek için düzenli olarak Excel'e aktarın.
+`SEED_USERS` ve `SESSION_SECRET` değerleri repoya eklenmez.

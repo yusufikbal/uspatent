@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>US Patent Kütüphanesi · US Patent Database</title>
+<link rel="stylesheet" href="/assets/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="gated">
+<main>
+  <div class="head">
+    <div><h1>US Patent Kütüphanesi</h1><div class="muted" id="count"></div></div>
+    <div class="row">
+      <a class="btn primary" href="/?new=1">Yeni analiz yap</a>
+      <button id="btnExport">Tümünü Excel'e aktar</button>
+    </div>
+  </div>
+  <input class="grow" id="q" placeholder="Molekül ara" style="width:100%;margin-bottom:14px">
+  <div class="card" style="padding:4px 8px">
+    <table>
+      <thead><tr><th>Molekül</th><th>Ürün</th><th>Patent</th><th>Son güncelleme</th><th>Ekleyen</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</main>
+<script src="/assets/app.js"></script>
+<script>
+let mols = [];
+
+(async () => {
+  if (!(await boot('library'))) return;
+  $('q').value = param('q') || '';
+  mols = await api('/api/molecules');
+  render();
+})();
+
+function render() {
+  const t = $('q').value.trim().toLowerCase();
+  const list = mols.filter(m => !t || m.label.toLowerCase().includes(t) || m.ingredients.some(i => i.toLowerCase().includes(t)));
+  $('count').textContent = `${mols.length} molekül` + (t ? ` · ${list.length} sonuç` : '');
+  $('rows').innerHTML = list.map(m => {
+    const s = m.summary;
+    return `<tr class="link" data-id="${esc(m.id)}">
+      <td><a href="/molecule.html?id=${encodeURIComponent(m.id)}">${esc(m.label)}</a></td>
+      <td>${s ? (s.products ? s.products : '<span class="err">Orange Book\'ta yok</span>') : '<span class="muted">—</span>'}</td>
+      <td>${s ? s.patents : '<span class="muted">—</span>'}</td>
+      <td class="muted">${s ? fmtTs(s.fetchedAt) : 'henüz açılmadı'}</td>
+      <td class="muted">${esc(m.createdBy || '')}</td></tr>`;
+  }).join('') || `<tr><td colspan="5" class="muted">Sonuç yok. <a href="/?new=1">Yeni analiz yap</a></td></tr>`;
+}
+$('q').oninput = render;
+$('rows').onclick = e => { const tr = e.target.closest('tr[data-id]'); if (tr && !e.target.closest('a')) location.href = '/molecule.html?id=' + encodeURIComponent(tr.dataset.id); };
+
+$('btnExport').onclick = async () => {
+  const b = $('btnExport'), rows = [];
+  b.disabled = true;
+  try {
+    const notes = await api('/api/notes');
+    for (const [i, m] of mols.entries()) {
+      b.textContent = `Hazırlanıyor ${i + 1}/${mols.length}…`;
+      rows.push(...patentRows(m, (await loadFda(m)).groups, notes));
+    }
+    downloadExcel(rows, 'US_Patent_Database');
+  } catch (e) { alert('Hata: ' + e.message); }
+  b.disabled = false; b.textContent = "Tümünü Excel'e aktar";
+};
+</script>
+</body>
+</html>

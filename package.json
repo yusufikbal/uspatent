@@ -1,0 +1,6 @@
+{
+  "name": "us-patent-database",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" }
+}
