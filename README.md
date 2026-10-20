@@ -13,7 +13,7 @@ FDA Orange Book verilerinden ilaç moleküllerine ait ticari ürünleri ve US pa
 
 ## Kullanım
 
-`us-patent-library.html` dosyasını tarayıcıda açın. İnternet bağlantısı gerekir.
+`index.html` dosyasını tarayıcıda açın. İnternet bağlantısı gerekir.
 
 İsteğe bağlı olarak yerel sunucu ile: `powershell -ExecutionPolicy Bypass -File serve.ps1` → http://localhost:8765/
 
