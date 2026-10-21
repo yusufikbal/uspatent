@@ -47,11 +47,10 @@ async function load(force) {
   $('out').innerHTML = '<p class="muted">FDA Orange Book sorgulanıyor…</p>';
   try { data = await loadFda(mol, force); }
   catch (e) { $('out').innerHTML = `<p class="err">FDA API hatası: ${esc(e.message)}</p>`; return; }
-  $('meta').textContent = `FDA Orange Book · son güncelleme ${data.updated || '—'} · çekildi ${fmtTs(data.at)}`;
+  $('meta').textContent = `Son Güncelleme Tarihi: ${fmtTs(data.at)}`;
   const sel = $('fBrand');
   sel.innerHTML = '<option value="">Tüm ürünler</option>' + data.groups.map(g => `<option>${esc(g.key)}</option>`).join('');
-  // Short pages open every product; long ones (e.g. Semaglutide) start collapsed
-  if (!openKeys) openKeys = new Set(data.groups.length <= 2 ? data.groups.map(g => g.key) : []);
+  if (!openKeys) openKeys = new Set();  // every product card starts closed
   render();
   syncSummary(mol, data).catch(() => {});
 }
