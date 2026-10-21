@@ -53,15 +53,17 @@ $('q').oninput = render;
 $('rows').onclick = e => { const tr = e.target.closest('tr[data-id]'); if (tr && !e.target.closest('a')) location.href = '/molecule.html?id=' + encodeURIComponent(tr.dataset.id); };
 
 $('btnExport').onclick = async () => {
-  const b = $('btnExport'), rows = [];
+  const b = $('btnExport'), rows = [], excl = [];
   b.disabled = true;
   try {
     const notes = await api('/api/notes');
     for (const [i, m] of mols.entries()) {
       b.textContent = `Hazırlanıyor ${i + 1}/${mols.length}…`;
-      rows.push(...patentRows(m, (await loadFda(m)).groups, notes));
+      const { groups } = await loadFda(m);
+      rows.push(...patentRows(m, groups, notes));
+      excl.push(...exclRows(m, groups));
     }
-    downloadExcel(rows, 'US_Patent_Database');
+    downloadExcel(rows, 'US_Patent_Database', excl);
   } catch (e) { alert('Hata: ' + e.message); }
   b.disabled = false; b.textContent = "Tümünü Excel'e aktar";
 };

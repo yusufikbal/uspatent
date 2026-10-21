@@ -74,9 +74,13 @@ function buildGroups(m, recs) {
     if (ings.length !== m.ingredients.length || !m.ingredients.every(s => ings.some(i => has(s, i.name)))) continue;
     if (m.form && !(p.dosage_form || '').toUpperCase().includes(m.form)) continue;
     const key = p.brand_name + ' · ' + p.application_type + p.application_number;
-    if (!groups.has(key)) groups.set(key, { key, brand: p.brand_name, nda: p.application_type + p.application_number, doses: [], pats: {} });
+    if (!groups.has(key)) groups.set(key, { key, brand: p.brand_name, nda: p.application_type + p.application_number, doses: [], pats: {}, excl: [], approval: '', pre1982: false });
     const g = groups.get(key);
-    g.doses.push({ no: r.product_number, str: ings.map(i => unit(i.strength)).join(' / ') });
+    const str = ings.map(i => unit(i.strength)).join(' / ');
+    g.doses.push({ no: r.product_number, str });
+    if (r.approved_prior_to_1982) g.pre1982 = true;
+    else if (r.approval_date && (!g.approval || r.approval_date < g.approval)) g.approval = r.approval_date;
+    for (const x of r.exclusivity || []) g.excl.push({ no: r.product_number, str, code: x.exclusivity_code, exp: x.exclusivity_expiration_date });
     for (const pt of r.patents || []) {
       const base = pt.patent_number.replace(/\*.*$/, ''), e = g.pats[base] ||= { pn: base, exp: '', ped: '' };
       if (/\*PED/i.test(pt.patent_number)) e.ped = pt.expiration_date > e.ped ? pt.expiration_date : e.ped;
@@ -84,14 +88,45 @@ function buildGroups(m, recs) {
     }
   }
   return [...groups.values()].sort((a, b) => a.key.localeCompare(b.key)).map(g => ({
-    key: g.key, brand: g.brand, nda: g.nda,
-    doses: g.doses.sort((a, b) => a.no.localeCompare(b.no)).map(d => d.str),
+    key: g.key, brand: g.brand, nda: g.nda, approval: g.pre1982 ? 'pre1982' : g.approval,
+    doses: g.doses.sort((a, b) => a.no.localeCompare(b.no)),
     patents: Object.values(g.pats).sort((a, b) => a.exp.localeCompare(b.exp) || a.pn.localeCompare(b.pn)),
+    excl: g.excl.sort((a, b) => a.no.localeCompare(b.no) || a.exp.localeCompare(b.exp) || a.code.localeCompare(b.code)),
   }));
 }
 
+const fmtApproval = a => a === 'pre1982' ? "1 Ocak 1982'den önce" : fmtDate(a) || '—';
+
+// Orange Book exclusivity codes; numbered codes (I-935, ODE-123 …) use their prefix
+const EXCL_CODES = {
+  NCE: 'New Chemical Entity (Yeni Kimyasal Madde)',
+  NP: 'New Product (Yeni Ürün)',
+  NPP: 'New Patient Population (Yeni Hasta Popülasyonu)',
+  NDF: 'New Dosage Form (Yeni Dozaj Formu)',
+  NC: 'New Combination (Yeni Kombinasyon)',
+  NS: 'New Strength (Yeni Doz/Güç)',
+  NR: 'New Route of Administration (Yeni Uygulama Yolu)',
+  NE: 'New Ester or Salt (Yeni Ester veya Tuz)',
+  RTO: 'Rx to OTC Switch (Reçeteliden Reçetesize Geçiş)',
+  ODE: 'Orphan Drug Exclusivity (Yetim İlaç Münhasırlığı)',
+  PED: 'Pediatric Exclusivity (Pediatrik Münhasırlık)',
+  PC: 'Patent Challenge – 180 Day Exclusivity (Patent İtirazı, 180 gün)',
+  CGT: 'Competitive Generic Therapy (Rekabetçi Jenerik Tedavi)',
+  GAIN: 'Generating Antibiotic Incentives Now (Antibiyotik Teşviki, QIDP)',
+  W: 'Waived Exclusivity (Feragat Edilmiş Münhasırlık)',
+  I: 'New Indication (Yeni Endikasyon)',
+  D: 'New Dosing Schedule (Yeni Dozaj Şeması)',
+  M: 'Miscellaneous (Diğer)',
+};
+function exclDef(code) {
+  const base = code.replace(/\*$/, ''), prefix = base.split('-')[0];
+  const def = EXCL_CODES[base] || EXCL_CODES[prefix];
+  if (!def) return 'Tanım bulunamadı (FDA Orange Book kod listesine bakın)';
+  return def + (code.endsWith('*') ? ' — * ek koşullu, ayrıntı FDA Orange Book\'ta' : '');
+}
+
 // Processed results are cached per browser; "Verileri güncelle" forces a fresh API call
-const cacheKey = m => 'usdb.fda.v1.' + m.ingredients.join('+') + '|' + (m.form || '');
+const cacheKey = m => 'usdb.fda.v2.' + m.ingredients.join('+') + '|' + (m.form || '');
 async function loadFda(m, force) {
   if (!force) { try { const c = JSON.parse(localStorage.getItem(cacheKey(m))); if (c) return c; } catch (e) {} }
   const d = await fetchFda(m);
@@ -103,14 +138,23 @@ async function loadFda(m, force) {
 function patentRows(m, groups, notes) {
   if (!groups.length) return [{ 'Molekül': m.label, 'Ürün': "FDA Orange Book'ta bulunamadı" }];
   return groups.flatMap(g => g.patents.map(p => ({
-    'Molekül': m.label, 'Ürün': g.brand, 'NDA': g.nda, 'US Patent No.': 'US ' + p.pn,
+    'Molekül': m.label, 'Ürün': g.brand, 'NDA': g.nda, 'İlk Onay Tarihi': fmtApproval(g.approval), 'US Patent No.': 'US ' + p.pn,
     'Expiration Date': fmtDate(p.exp), 'PED Expiration': fmtDate(p.ped), 'Patent Yorumu': notes[p.pn]?.text || '',
   })));
 }
-function downloadExcel(rows, name) {
+function exclRows(m, groups) {
+  return groups.flatMap(g => g.excl.map(x => ({
+    'Molekül': m.label, 'Ürün': g.brand, 'NDA': g.nda, 'Product No': x.no, 'Strength': x.str,
+    'Exclusivity Code': x.code, 'Tanım': exclDef(x.code), 'Exclusivity Expiration': fmtDate(x.exp),
+  })));
+}
+function downloadExcel(rows, name, excl = []) {
   if (typeof XLSX === 'undefined') return alert('Excel kütüphanesi yüklenemedi.');
   const ws = XLSX.utils.json_to_sheet(rows), wb = XLSX.utils.book_new();
-  ws['!cols'] = [36, 20, 10, 14, 14, 14, 60].map(w => ({ wch: w }));
+  ws['!cols'] = [36, 20, 10, 16, 14, 14, 14, 60].map(w => ({ wch: w }));
   XLSX.utils.book_append_sheet(wb, ws, 'Patents');
+  const we = XLSX.utils.json_to_sheet(excl.length ? excl : [{ 'Bilgi': 'Exclusivity kaydı yok' }]);
+  we['!cols'] = [36, 20, 10, 10, 30, 16, 50, 20].map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, we, 'Exclusivity');
   XLSX.writeFile(wb, `${name}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }

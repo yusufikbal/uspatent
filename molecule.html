@@ -61,7 +61,11 @@ function view() {
   const t = $('fText').value.trim().toUpperCase().replace(/^US\s*/, ''), b = $('fBrand').value, hide = $('fHideExp').checked;
   return data.groups.filter(g => !b || g.key === b).map(g => {
     const hit = t && g.key.toUpperCase().includes(t);
-    return { ...g, patents: g.patents.filter(p => (!hide || (p.ped || p.exp) >= today) && (!t || hit || p.pn.includes(t))) };
+    return {
+      ...g,
+      patents: g.patents.filter(p => (!hide || (p.ped || p.exp) >= today) && (!t || hit || p.pn.includes(t))),
+      excl: g.excl.filter(x => !hide || x.exp >= today),
+    };
   }).filter(g => !t || g.patents.length);
 }
 
@@ -74,16 +78,31 @@ function render() {
   }
   let html = '';
   for (const g of view()) {
-    html += `<div class="card"><h3>${esc(g.brand)} <small>· ${esc(g.nda)} · ${g.doses.map(esc).join(', ')}</small></h3>`;
-    if (!g.patents.length) { html += '<p class="muted">Listelenmiş patent yok.</p></div>'; continue; }
-    html += '<table><thead><tr><th>US Patent No.</th><th>Expiration Date</th><th>Patent Yorumu</th></tr></thead><tbody>';
-    for (const p of g.patents) {
-      const n = notes[p.pn];
-      html += `<tr><td class="pn">US ${esc(p.pn)}</td>
-        <td class="exp ${(p.ped || p.exp) < today ? 'expired' : ''}">${fmtDate(p.exp)}${p.ped ? `<span class="sub">PED: ${fmtDate(p.ped)}</span>` : ''}</td>
-        <td class="note"><textarea data-pn="${esc(p.pn)}" placeholder="Yorum ekle…">${esc(n?.text || '')}</textarea><span class="sub" data-meta="${esc(p.pn)}">${noteMeta(n)}</span></td></tr>`;
+    html += `<div class="card">
+      <div class="phead"><h3>${esc(g.brand)} <small>· ${esc(g.nda)}</small></h3><span class="approval">İlk onay: <b>${fmtApproval(g.approval)}</b></span></div>
+      <div class="muted" style="font-size:12px;margin-bottom:8px">${g.doses.map(d => esc(d.str)).join(', ')}</div>`;
+    if (!g.patents.length) html += '<p class="muted">Listelenmiş patent yok.</p>';
+    else {
+      html += '<table><thead><tr><th>US Patent No.</th><th>Expiration Date</th><th>Patent Yorumu</th></tr></thead><tbody>';
+      for (const p of g.patents) {
+        const n = notes[p.pn];
+        html += `<tr><td class="pn">US ${esc(p.pn)}</td>
+          <td class="exp ${(p.ped || p.exp) < today ? 'expired' : ''}">${fmtDate(p.exp)}${p.ped ? `<span class="sub">PED: ${fmtDate(p.ped)}</span>` : ''}</td>
+          <td class="note"><textarea data-pn="${esc(p.pn)}" placeholder="Yorum ekle…">${esc(n?.text || '')}</textarea><span class="sub" data-meta="${esc(p.pn)}">${noteMeta(n)}</span></td></tr>`;
+      }
+      html += '</tbody></table>';
     }
-    html += '</tbody></table></div>';
+    html += '<h4 class="sect">Exclusivity Data</h4>';
+    if (!g.excl.length) html += '<p class="muted">Orange Book\'ta listelenmiş exclusivity yok.</p>';
+    else {
+      html += '<table><thead><tr><th>Product No</th><th>Exclusivity Code</th><th>Tanım</th><th>Exclusivity Expiration</th></tr></thead><tbody>';
+      for (const x of g.excl) {
+        html += `<tr><td class="pn">${esc(x.no)}<span class="sub">${esc(x.str)}</span></td><td class="pn">${esc(x.code)}</td>
+          <td>${esc(exclDef(x.code))}</td><td class="exp ${x.exp < today ? 'expired' : ''}">${fmtDate(x.exp)}</td></tr>`;
+      }
+      html += '</tbody></table>';
+    }
+    html += '</div>';
   }
   $('out').innerHTML = html || '<p class="muted">Filtrelere uyan sonuç yok.</p>';
 }
@@ -109,7 +128,7 @@ $('out').addEventListener('input', e => {
 
 $('fText').oninput = $('fBrand').onchange = $('fHideExp').onchange = () => data && render();
 $('btnRefresh').onclick = () => load(true);
-$('btnExport').onclick = () => data && downloadExcel(patentRows(mol, view(), notes), mol.label.replace(/[^\w]+/g, '_'));
+$('btnExport').onclick = () => data && downloadExcel(patentRows(mol, view(), notes), mol.label.replace(/[^\w]+/g, '_'), exclRows(mol, view()));
 $('btnDelete').onclick = async () => {
   if (!confirm(`“${mol.label}” kütüphaneden kaldırılsın mı? Patent yorumları silinmez.`)) return;
   await api('/api/molecules?id=' + encodeURIComponent(mol.id), { method: 'DELETE' });

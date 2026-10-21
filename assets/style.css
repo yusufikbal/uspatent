@@ -31,6 +31,10 @@ h1{font-size:22px;margin:0 0 4px}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:14px}
 .card h3{margin:0 0 8px;font-size:15px}
 .card h3 small{color:var(--muted);font-weight:400}
+.phead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:4px}
+.phead h3{margin:0}
+.approval{background:var(--soft);color:var(--text);border:1px solid var(--accent);border-radius:6px;padding:4px 10px;font-size:13px}
+.sect{margin:18px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
 
 table{border-collapse:collapse;width:100%}
 th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top}
