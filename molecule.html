@@ -22,12 +22,14 @@
     <input class="grow" id="fText" placeholder="Patent no veya ürün ara">
     <select id="fBrand"></select>
     <label class="muted"><input type="checkbox" id="fHideExp"> Süresi dolanları gizle</label>
+    <button id="btnOpenAll">Tümünü aç</button>
+    <button id="btnCloseAll">Tümünü kapat</button>
   </div>
   <div id="out"><p class="muted">Yükleniyor…</p></div>
 </main>
 <script src="/assets/app.js"></script>
 <script>
-let mol, data, notes = {};
+let mol, data, notes = {}, openKeys = null;
 const timers = {};
 
 (async () => {
@@ -48,13 +50,10 @@ async function load(force) {
   $('meta').textContent = `FDA Orange Book · son güncelleme ${data.updated || '—'} · çekildi ${fmtTs(data.at)}`;
   const sel = $('fBrand');
   sel.innerHTML = '<option value="">Tüm ürünler</option>' + data.groups.map(g => `<option>${esc(g.key)}</option>`).join('');
+  // Short pages open every product; long ones (e.g. Semaglutide) start collapsed
+  if (!openKeys) openKeys = new Set(data.groups.length <= 2 ? data.groups.map(g => g.key) : []);
   render();
-  // Keep the library list's product/patent counts in step with what this page shows
-  const s = { products: data.groups.length, patents: data.groups.reduce((a, g) => a + g.patents.length, 0), fetchedAt: data.at }, o = mol.summary || {};
-  if (o.products !== s.products || o.patents !== s.patents || o.fetchedAt !== s.fetchedAt) {
-    mol.summary = s;
-    api('/api/molecules?id=' + encodeURIComponent(mol.id), { method: 'PATCH', body: { summary: s } }).catch(() => {});
-  }
+  syncSummary(mol, data).catch(() => {});
 }
 
 function view() {
@@ -80,13 +79,18 @@ function render() {
     return;
   }
   let html = '';
+  const searching = !!$('fText').value.trim();
   for (const g of view()) {
-    html += `<div class="card">
-      <div class="phead"><h3>${esc(g.brand)} <small>· ${esc(g.nda)}</small></h3><span class="approval">İlk onay: <b>${fmtApproval(g.approval)}</b></span></div>
-      <div class="dchips">${g.doses.map(d => `<span class="dchip pc${pc(g, d.no)}">${esc(d.no)} · ${esc(d.str)}</span>`).join('')}</div>`;
+    const open = searching || openKeys.has(g.key);
+    html += `<details class="card prod" data-key="${esc(g.key)}"${open ? ' open' : ''}>
+      <summary>
+        <div class="phead"><h3>${esc(g.brand)} <small>· ${esc(g.nda)}</small></h3>
+          <span class="row"><span class="muted counts">${g.doses.length} doz · ${g.patents.length} patent · ${g.excl.length} exclusivity</span><span class="approval">İlk onay: <b>${fmtApproval(g.approval)}</b></span></span></div>
+        <div class="dchips">${g.doses.map(d => `<span class="dchip pc${pc(g, d.no)}">${esc(d.no)} · ${esc(d.str)}</span>`).join('')}</div>
+      </summary>`;
     if (!g.patents.length) html += '<p class="muted">Listelenmiş patent yok.</p>';
     else {
-      html += '<table><thead><tr><th>US Patent No.</th><th>Expiration Date</th><th>Patent Yorumu</th></tr></thead><tbody>';
+      html += '<table><thead lang="en"><tr><th>US Patent No.</th><th>Expiration Date</th><th>Patent Yorumu</th></tr></thead><tbody>';
       for (const p of g.patents) {
         const n = notes[p.pn];
         html += `<tr><td class="pn">US ${esc(p.pn)}</td>
@@ -95,10 +99,10 @@ function render() {
       }
       html += '</tbody></table>';
     }
-    html += '<h4 class="sect">Exclusivity Data</h4>';
+    html += '<h4 class="sect" lang="en">Exclusivity Data</h4>';
     if (!g.excl.length) html += '<p class="muted">Orange Book\'ta listelenmiş exclusivity yok.</p>';
     else {
-      html += '<table><thead><tr><th>Product No</th><th>Exclusivity Code</th><th>Tanım</th><th>Exclusivity Expiration</th></tr></thead><tbody>';
+      html += '<table><thead lang="en"><tr><th>Product No</th><th>Exclusivity Code</th><th>Tanım</th><th>Exclusivity Expiration</th></tr></thead><tbody>';
       for (const [i, x] of g.excl.entries()) {
         const first = i === 0 || g.excl[i - 1].no !== x.no;
         html += `<tr class="pc${pc(g, x.no)} prow${first && i ? ' pfirst' : ''}"><td class="pn"><span class="dchip pc${pc(g, x.no)}">${esc(x.no)}</span><span class="sub">${esc(x.str)}</span></td><td class="pn">${esc(x.code)}</td>
@@ -106,10 +110,18 @@ function render() {
       }
       html += '</tbody></table>';
     }
-    html += '</div>';
+    html += '</details>';
   }
   $('out').innerHTML = html || '<p class="muted">Filtrelere uyan sonuç yok.</p>';
 }
+
+// Remember which products are open so filtering doesn't collapse them ('toggle' doesn't bubble, hence capture)
+$('out').addEventListener('toggle', e => {
+  const k = e.target.dataset?.key;
+  if (k && !$('fText').value.trim()) e.target.open ? openKeys.add(k) : openKeys.delete(k);
+}, true);
+$('btnOpenAll').onclick = () => { if (!data) return; openKeys = new Set(data.groups.map(g => g.key)); render(); };
+$('btnCloseAll').onclick = () => { if (!data) return; openKeys = new Set(); $('fText').value = ''; render(); };
 
 // Comments save to the server shortly after typing stops; the same patent under other products updates too
 $('out').addEventListener('input', e => {

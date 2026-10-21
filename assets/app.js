@@ -137,6 +137,14 @@ async function loadFda(m, force) {
   return d;
 }
 
+// Keep the library list's product/patent counts in step with the latest FDA data
+async function syncSummary(m, d) {
+  const s = { products: d.groups.length, patents: d.groups.reduce((a, g) => a + g.patents.length, 0), fetchedAt: d.at }, o = m.summary || {};
+  if (o.products === s.products && o.patents === s.patents && o.fetchedAt === s.fetchedAt) return;
+  m.summary = s;
+  await api('/api/molecules?id=' + encodeURIComponent(m.id), { method: 'PATCH', body: { summary: s } });
+}
+
 /* ---------- Excel ---------- */
 function patentRows(m, groups, notes) {
   if (!groups.length) return [{ 'Molekül': m.label, 'Ürün': "FDA'de onaylı ürün yoktur (Orange Book'ta kayıt yok)" }];

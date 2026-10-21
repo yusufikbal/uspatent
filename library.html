@@ -12,6 +12,7 @@
   <div class="head">
     <div><h1>US Patent Kütüphanesi</h1><div class="muted" id="count"></div></div>
     <div class="row">
+      <button id="btnRefreshAll">Tüm verileri güncelle</button>
       <a class="btn primary" href="/?new=1">Yeni analiz yap</a>
       <button id="btnExport">Tümünü Excel'e aktar</button>
     </div>
@@ -51,6 +52,20 @@ function render() {
 }
 $('q').oninput = render;
 $('rows').onclick = e => { const tr = e.target.closest('tr[data-id]'); if (tr && !e.target.closest('a')) location.href = '/molecule.html?id=' + encodeURIComponent(tr.dataset.id); };
+
+// Re-fetches every molecule from the FDA API one by one (openFDA rate limits) and refreshes the table counts
+$('btnRefreshAll').onclick = async () => {
+  const b = $('btnRefreshAll'), failed = [];
+  b.disabled = true; $('btnExport').disabled = true;
+  for (const [i, m] of mols.entries()) {
+    b.textContent = `Güncelleniyor ${i + 1}/${mols.length}…`;
+    try { await syncSummary(m, await loadFda(m, true)); } catch (e) { failed.push(m.label); }
+    render();
+  }
+  b.disabled = false; $('btnExport').disabled = false;
+  b.textContent = 'Tüm verileri güncelle';
+  $('count').textContent += failed.length ? ` · güncellenemedi: ${failed.join(', ')}` : ` · tümü güncellendi (${fmtTs(new Date().toISOString())})`;
+};
 
 $('btnExport').onclick = async () => {
   const b = $('btnExport'), rows = [], excl = [];

@@ -43,6 +43,13 @@ h1{font-size:22px;margin:0 0 4px}
 tr.prow td{background:color-mix(in srgb,var(--pc) 6%,transparent)}
 tr.prow td:first-child{box-shadow:inset 3px 0 0 var(--pc)}
 tr.pfirst td{border-top:2px solid var(--border)}
+details.prod > summary{list-style:none;cursor:pointer;position:relative;padding-left:22px;margin:-2px 0}
+details.prod > summary::-webkit-details-marker{display:none}
+details.prod > summary::before{content:"";position:absolute;left:2px;top:7px;border:6px solid transparent;border-left:8px solid var(--muted);transition:transform .15s}
+details.prod[open] > summary::before{transform:rotate(90deg);transform-origin:4px 6px}
+details.prod:not([open]) .dchips{display:none}
+details.prod[open] > summary{margin-bottom:6px}
+.counts{font-size:12px}
 .sect{margin:18px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
 
 table{border-collapse:collapse;width:100%}
@@ -54,7 +61,7 @@ td.exp{white-space:nowrap}
 td.note{width:65%}
 textarea{width:100%;min-height:34px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);resize:vertical}
 .expired{color:var(--bad)}
-.sub{display:block;font-size:11px;color:var(--muted)}
+.sub{display:block;font-size:11px;color:var(--muted);font-family:system-ui,"Segoe UI",sans-serif}
 tr.link{cursor:pointer}
 tr.link:hover td{background:var(--soft)}
 
