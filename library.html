@@ -20,8 +20,8 @@
       <div class="muted" id="count">&nbsp;</div>
     </div>
     <div class="actions">
-      <button id="btnRefreshAll" data-icon="refresh">Tüm verileri güncelle</button>
-      <button id="btnExport" data-icon="download">Tümünü Excel'e aktar</button>
+      <button id="btnRefreshAll" data-icon="refresh"><span class="lbl-l">Tüm verileri güncelle</span><span class="lbl-s">Tümünü güncelle</span></button>
+      <button id="btnExport" data-icon="download"><span class="lbl-l">Tümünü Excel'e aktar</span><span class="lbl-s">Excel</span></button>
       <a class="btn primary" href="/?new=1" data-icon="plus">Yeni analiz yap</a>
     </div>
   </div>
@@ -77,14 +77,15 @@ function setProgress(done, total) {
   $('progress').hidden = total === 0;
   $('progress').firstElementChild.style.width = total ? (100 * done / total) + '%' : '0';
 }
-const label = (b, ic, text) => { b.innerHTML = icon(ic) + text; };
+// Button text while working; `short` is what phones show (see .lbl-l / .lbl-s)
+const label = (b, ic, text, short = text) => { b.innerHTML = `${icon(ic)}<span class="lbl-l">${text}</span><span class="lbl-s">${short}</span>`; };
 
 // Re-fetches every molecule from the FDA API one by one (openFDA rate limits) and refreshes the table counts
 $('btnRefreshAll').onclick = async () => {
   const b = $('btnRefreshAll'), failed = [];
   b.disabled = true; $('btnExport').disabled = true; statusNote = '';
   for (const [i, m] of mols.entries()) {
-    label(b, 'refresh', `Güncelleniyor ${i + 1}/${mols.length}…`);
+    label(b, 'refresh', `Güncelleniyor ${i + 1}/${mols.length}…`, `${i + 1}/${mols.length}…`);
     setProgress(i, mols.length);
     try { await syncSummary(m, await loadFda(m, true)); } catch (e) { failed.push(m.label); }
     render();
@@ -92,7 +93,7 @@ $('btnRefreshAll').onclick = async () => {
   setProgress(mols.length, mols.length);
   setTimeout(() => setProgress(0, 0), 900);
   b.disabled = false; $('btnExport').disabled = false;
-  label(b, 'refresh', 'Tüm verileri güncelle');
+  label(b, 'refresh', 'Tüm verileri güncelle', 'Tümünü güncelle');
   statusNote = failed.length ? ` · güncellenemedi: ${failed.join(', ')}` : ` · tümü güncellendi (${fmtTs(new Date().toISOString())})`;
   render();
 };
@@ -103,14 +104,14 @@ $('btnExport').onclick = async () => {
   try {
     const notes = await api('/api/notes');
     for (const [i, m] of mols.entries()) {
-      label(b, 'download', `Hazırlanıyor ${i + 1}/${mols.length}…`);
+      label(b, 'download', `Hazırlanıyor ${i + 1}/${mols.length}…`, `${i + 1}/${mols.length}…`);
       const { groups } = await loadFda(m);
       rows.push(...patentRows(m, groups, notes));
       excl.push(...exclRows(m, groups));
     }
     downloadExcel(rows, 'USPatents', excl);
   } catch (e) { alert('Hata: ' + e.message); }
-  b.disabled = false; label(b, 'download', "Tümünü Excel'e aktar");
+  b.disabled = false; label(b, 'download', "Tümünü Excel'e aktar", 'Excel');
 };
 </script>
 </body>

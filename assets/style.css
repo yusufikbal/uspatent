@@ -131,6 +131,8 @@ button.danger:hover { border-color: rgba(255, 93, 104, .45); background: rgba(25
 .btn.lg, button.lg { --h: 48px; padding: 0 24px; font-size: 14.5px; }
 .btn.sm, button.sm { --h: 32px; padding: 0 13px; font-size: 12.5px; }
 button:disabled { opacity: .5; cursor: default; transform: none; }
+/* Long / short button labels: the short one replaces the long one on phones */
+.lbl-s { display: none; }
 
 /* ---------- Fields ---------- */
 input, select, textarea { font: inherit; color: var(--text); }
@@ -269,7 +271,7 @@ td.note { width: 58%; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px; padding: 8px; border-radius: var(--r-pill); }
 .toolbar .with-icon { flex: 1; min-width: 220px; }
 .toolbar select { max-width: 280px; }
-.toolbar .seg { display: inline-flex; padding: 3px; border-radius: var(--r-pill); background: rgba(255, 255, 255, .03); border: 1px solid var(--line); }
+.toolbar .seg { margin-left: auto; display: inline-flex; padding: 3px; border-radius: var(--r-pill); background: rgba(255, 255, 255, .03); border: 1px solid var(--line); }
 .toolbar .seg button { --h: 36px; background: transparent; border-color: transparent; box-shadow: none; color: var(--text-2); }
 .toolbar .seg button:hover { background: var(--surface-3); color: var(--text); transform: none; box-shadow: none; }
 
@@ -316,11 +318,11 @@ details.prod[open] .chev { transform: rotate(90deg); background: var(--red); bor
 .pc0 { --pc: var(--p0); } .pc1 { --pc: var(--p1); } .pc2 { --pc: var(--p2); } .pc3 { --pc: var(--p3); } .pc4 { --pc: var(--p4); } .pc5 { --pc: var(--p5); }
 .dchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
 .dchip {
-  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px 0 4px; border-radius: var(--r-pill);
-  font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 26px; max-width: 100%; padding: 3px 11px 3px 4px; border-radius: 13px;
+  font-size: 12px; font-weight: 500; line-height: 1.35; color: var(--text); overflow-wrap: anywhere;
   background: color-mix(in srgb, var(--pc) 11%, transparent); border: 1px solid color-mix(in srgb, var(--pc) 38%, transparent);
 }
-.dchip i { font: 600 10.5px/18px var(--mono); font-style: normal; padding: 0 6px; border-radius: var(--r-pill); color: #0b0c0f; background: var(--pc); font-feature-settings: normal; }
+.dchip i { flex: none; align-self: flex-start; font: 600 10.5px/18px var(--mono); font-style: normal; padding: 0 6px; border-radius: var(--r-pill); color: #0b0c0f; background: var(--pc); font-feature-settings: normal; }
 .dchip.solo { padding: 0 4px; }
 tr.prow td { background: color-mix(in srgb, var(--pc) 5%, transparent); }
 tr.prow td:first-child { box-shadow: inset 2px 0 0 var(--pc); }
@@ -423,11 +425,15 @@ td.go-cell { width: 44px; vertical-align: middle; text-align: right; }
 .empty-state .actions { margin-top: 20px; justify-content: center; }
 
 /* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  /* Filter bar wraps to two rows: search + product filter, then switch + open/close */
+  .toolbar { border-radius: var(--r-lg); }
+  .toolbar .with-icon { flex: 1 1 320px; }
+  .toolbar select { flex: 1 1 220px; max-width: none; }
+}
 @media (max-width: 860px) {
   .profile-grid { grid-template-columns: 1fr; }
   .stats { grid-template-columns: 1fr; margin-top: 44px; }
-  .toolbar { border-radius: var(--r-lg); }
-  .toolbar select { max-width: none; flex: 1; }
 }
 @media (max-width: 720px) {
   main { padding: 26px 16px 80px; }
@@ -437,26 +443,67 @@ td.go-cell { width: 44px; vertical-align: middle; text-align: right; }
   .wm { display: none; }
   .uname { display: none; }
   .navlinks a { padding: 0 12px; font-size: 13px; }
+  .lbl-l { display: none; }
+  .lbl-s { display: inline; }
+
+  /* Page header actions: equal-width grid, primary action first */
   .page-head { margin-bottom: 20px; }
-  .actions { width: 100%; }
-  .actions > * { flex: 1; }
-  .phead { grid-template-columns: auto 1fr; }
-  .approval { grid-column: 2; align-items: flex-start; justify-self: start; }
+  .actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .actions > * { width: 100%; padding: 0 12px; }
+  .actions > .primary:last-child { grid-column: 1 / -1; order: -1; }
+  .actions.with-icon-btn { grid-template-columns: 1fr 1fr 44px; }
+  .actions.with-icon-btn > .icon-only { padding: 0; }
+
+  /* Filter bar stacks; every control spans the full width */
+  .toolbar { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; }
+  .toolbar .with-icon, .toolbar select { flex: none; width: 100%; min-width: 0; }
+  .toolbar .switch { height: 36px; }
+  .toolbar .seg { margin-left: 0; width: 100%; }
+  .toolbar .seg button { flex: 1; }
+
+  /* Product card header */
   details.prod > summary { padding: 16px; }
-  .pbody { padding: 0 14px 16px; overflow-x: auto; }
-  td.note { min-width: 220px; }
-  .newpanel .grid2 { grid-template-columns: 1fr; }
-  .hero-search input { height: 54px; }
+  .phead { grid-template-columns: auto 1fr; align-items: start; gap: 12px; }
+  .approval { grid-column: 2; flex-direction: row; align-items: center; gap: 8px; justify-self: start; padding: 6px 12px; border-radius: var(--r-pill); }
+  .pbody { padding: 0 12px 14px; }
+
+  /* Patent and exclusivity tables become stacked rows */
+  .pbody table, .pbody tbody { display: block; }
+  .pbody thead { display: none; }
+  .pbody tr { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 12px; padding: 12px 6px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+  .pbody tr:last-child { border-bottom: 0; }
+  .pbody td { display: block; padding: 0; border: 0; min-width: 0; }
+  .pbody tbody tr:hover td { background: none; }
+  .pbody td.exp, .pbody td.code { text-align: right; align-self: start; }
+  .pbody td.note { grid-column: 1 / -1; width: auto; }
+  .pbody tr.prow { margin-bottom: 6px; padding: 12px; border: 0; border-radius: var(--r-sm); background: color-mix(in srgb, var(--pc) 7%, transparent); box-shadow: inset 2px 0 0 var(--pc); }
+  .pbody tr.prow td { background: none; box-shadow: none; border: 0; }
+  .pbody tr.pfirst { margin-top: 12px; }
+  .pbody tr.prow td.muted { grid-column: 1; font-size: 12.5px; }
+
+  /* Home */
+  .hero .eyebrow { flex-wrap: wrap; font-size: 10px; letter-spacing: .1em; text-align: center; }
+  .hero-search input { height: 54px; padding-right: 18px; }
   .hero-search kbd { display: none; }
-  /* Library rows become cards */
+  .hero-actions { flex-direction: column; align-items: stretch; }
+  .hero-actions > * { width: 100%; }
+  .newpanel .grid2 { grid-template-columns: 1fr; }
+  .list a { grid-template-columns: 1fr auto; }
+  .list a .who { display: none; }
+
+  /* Library rows become cards: name, then products / patents side by side, then meta */
   .table-panel { padding: 8px; }
   .table-panel thead { display: none; }
-  .table-panel tbody tr { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 14px; border-bottom: 1px solid var(--line); }
+  .table-panel tbody tr { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px 12px; padding: 14px; border-bottom: 1px solid var(--line); }
   .table-panel tbody tr:last-child { border-bottom: 0; }
-  .table-panel td { padding: 0; border: 0; background: none !important; }
-  .table-panel td[data-label] { grid-column: 1; font-size: 12.5px; color: var(--muted); }
+  .table-panel td { padding: 0; border: 0; background: none !important; min-width: 0; }
+  .table-panel td:first-child { grid-column: 1 / 3; margin-bottom: 4px; }
+  .table-panel td[data-label] { grid-column: 1 / 3; font-size: 12.5px; color: var(--muted); }
+  .table-panel td[data-label="Ürün"] { grid-column: 1; }
+  .table-panel td[data-label="Patent"] { grid-column: 2; }
   .table-panel td[data-label]::before { content: attr(data-label) " · "; color: var(--faint); }
-  .table-panel td.go-cell { grid-column: 2; grid-row: 1 / span 5; align-self: center; }
+  .table-panel td.go-cell { grid-column: 3; grid-row: 1 / span 4; align-self: center; }
+  .table-panel td[colspan] { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
