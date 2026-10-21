@@ -3,44 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Profil · US Patent Database</title>
+<meta name="theme-color" content="#07080a">
+<title>Profil · USPatents</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body class="gated">
 <main>
-  <h1>Profil</h1>
-  <div class="muted" id="who"></div>
+  <div class="eyebrow">Hesap</div>
+  <div class="profile-head">
+    <span class="avatar lg" id="bigAvatar"></span>
+    <div><h1 id="bigName">Profil</h1><div class="muted mono" id="who"></div></div>
+  </div>
 
-  <form class="card form" id="fProfile" style="margin-top:18px">
-    <h3>Bilgilerim</h3>
-    <label for="name">Ad Soyad</label>
-    <input id="name" required maxlength="80">
-    <label for="email">E-posta</label>
-    <input id="email" type="email" maxlength="120">
-    <button class="primary">Kaydet</button>
-    <div class="msg" id="msgProfile"></div>
-  </form>
+  <div class="profile-grid">
+    <form class="panel" id="fProfile">
+      <h2>Bilgilerim</h2>
+      <div class="muted">Adınız, eklediğiniz analizlerde ve yorumlarda görünür.</div>
+      <label class="field"><span>Ad Soyad</span><input id="name" required maxlength="80"></label>
+      <label class="field"><span>E-posta</span><input id="email" type="email" maxlength="120"></label>
+      <div class="formfoot"><button class="primary">Kaydet</button><div class="msg" id="msgProfile" role="status"></div></div>
+    </form>
 
-  <form class="card form" id="fPass">
-    <h3>Şifre değiştir</h3>
-    <label for="cur">Mevcut şifre</label>
-    <input id="cur" type="password" autocomplete="current-password" required>
-    <label for="new1">Yeni şifre (en az 8 karakter)</label>
-    <input id="new1" type="password" autocomplete="new-password" minlength="8" required>
-    <label for="new2">Yeni şifre (tekrar)</label>
-    <input id="new2" type="password" autocomplete="new-password" minlength="8" required>
-    <button class="primary">Şifreyi değiştir</button>
-    <div class="msg" id="msgPass"></div>
-  </form>
+    <form class="panel" id="fPass">
+      <h2>Şifre değiştir</h2>
+      <div class="muted">Değişiklikten sonra diğer cihazlardaki oturumlar kapanır.</div>
+      <label class="field"><span>Mevcut şifre</span><input id="cur" type="password" autocomplete="current-password" required></label>
+      <label class="field"><span>Yeni şifre (en az 8 karakter)</span><input id="new1" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label class="field"><span>Yeni şifre (tekrar)</span><input id="new2" type="password" autocomplete="new-password" minlength="8" required></label>
+      <div class="formfoot"><button class="primary">Şifreyi değiştir</button><div class="msg" id="msgPass" role="status"></div></div>
+    </form>
+  </div>
 </main>
 <script src="/assets/app.js"></script>
 <script>
 const say = (id, text, ok) => { $(id).textContent = text; $(id).className = 'msg ' + (ok ? 'ok' : 'err'); };
+const showName = n => { $('bigName').textContent = n; $('bigAvatar').textContent = initials(n); };
 
 (async () => {
   const me = await boot('profile');
   if (!me) return;
-  $('who').textContent = 'Kullanıcı adı: ' + me.username;
+  $('who').textContent = '@' + me.username;
+  showName(me.displayName || me.username);
   $('name').value = me.displayName || '';
   $('email').value = me.email || '';
 })();
@@ -49,7 +55,8 @@ $('fProfile').onsubmit = async e => {
   e.preventDefault();
   try {
     const me = await api('/api/auth?action=profile', { method: 'PUT', body: { displayName: $('name').value, email: $('email').value } });
-    document.querySelector('.nav a[href="/profile.html"]').textContent = me.displayName;
+    setNavUser(me.displayName);
+    showName(me.displayName);
     say('msgProfile', 'Kaydedildi.', true);
   } catch (err) { say('msgProfile', err.message); }
 };
@@ -60,7 +67,7 @@ $('fPass').onsubmit = async e => {
   try {
     await api('/api/auth?action=password', { method: 'POST', body: { current: $('cur').value, next: $('new1').value } });
     $('fPass').reset();
-    say('msgPass', 'Şifreniz değiştirildi. Diğer cihazlardaki oturumlar kapatıldı.', true);
+    say('msgPass', 'Şifreniz değiştirildi.', true);
   } catch (err) { say('msgPass', err.message); }
 };
 </script>

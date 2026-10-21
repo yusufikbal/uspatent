@@ -21,25 +21,114 @@ async function api(path, { method = 'GET', body } = {}) {
   return j;
 }
 
+/* ---------- Brand and icons ---------- */
+// USPatents mark: navy field with a star, three stripes running out of the emblem
+function logoMark(id = 'lm') {
+  return `<svg viewBox="0 0 40 40" aria-hidden="true">
+    <defs>
+      <clipPath id="${id}c"><circle cx="20" cy="20" r="18"/></clipPath>
+      <linearGradient id="${id}n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2d55ad"/><stop offset="1" stop-color="#11285c"/></linearGradient>
+      <linearGradient id="${id}s" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ff3550"/><stop offset="1" stop-color="#b80d29"/></linearGradient>
+    </defs>
+    <g clip-path="url(#${id}c)">
+      <rect width="40" height="40" fill="#0d0f13"/>
+      <rect width="19" height="40" fill="url(#${id}n)"/>
+      <polygon fill="#fff" points="10.5,15.4 11.59,18.5 14.88,18.58 12.26,20.57 13.2,23.72 10.5,21.85 7.8,23.72 8.74,20.57 6.12,18.58 9.41,18.5"/>
+      <rect x="21.5" y="11.4" width="24" height="4.4" rx="2.2" fill="url(#${id}s)"/>
+      <rect x="21.5" y="17.8" width="24" height="4.4" rx="2.2" fill="#f2f3f5"/>
+      <rect x="21.5" y="24.2" width="24" height="4.4" rx="2.2" fill="url(#${id}s)"/>
+    </g>
+    <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="1"/>
+  </svg>`;
+}
+const WORDMARK = '<span class="wm"><b>US</b>Patents</span>';
+
+const ICONS = {
+  search: '<path d="m21 21-4.3-4.3"/><circle cx="11" cy="11" r="7"/>',
+  chevDown: '<path d="m6 9 6 6 6-6"/>',
+  chevRight: '<path d="m9 6 6 6-6 6"/>',
+  arrowLeft: '<path d="M19 12H5m6-6-6 6 6 6"/>',
+  arrowRight: '<path d="M5 12h14m-6-6 6 6-6 6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  refresh: '<path d="M20 11a8 8 0 0 0-14.9-3.6M4 4v4h4m-4 5a8 8 0 0 0 14.9 3.6M20 20v-4h-4"/>',
+  download: '<path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/>',
+  trash: '<path d="M4 7h16M10 11v6m4-6v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/>',
+  molecule: '<circle cx="12" cy="12" r="2.5"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="20" r="2"/><path d="m6.7 7.2 3.4 3.3m7.2-3.3-3.4 3.3M12 14.5V18"/>',
+  alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5m0 3.3v.2"/>',
+  filter: '<path d="M4 5h16l-6 8v5l-4 2v-7z"/>',
+  doc: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+};
+const icon = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+const initials = n => String(n || '').trim().split(/\s+/).map(w => w[0] || '').slice(0, 2).join('').toLocaleUpperCase('tr');
+
+// Fills every [data-icon] / [data-logo] placeholder in static page markup
+function hydrateIcons(root = document) {
+  root.querySelectorAll('[data-icon]').forEach(el => { el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)); el.removeAttribute('data-icon'); });
+  root.querySelectorAll('[data-logo]').forEach((el, i) => { el.innerHTML = logoMark('lg' + i); el.removeAttribute('data-logo'); });
+}
+
+/* ---------- Shared UI pieces ---------- */
+const skeletonCards = (n = 3) => Array.from({ length: n }, (_, i) =>
+  `<div class="sk-card"><span class="sk"></span><div style="flex:1"><span class="sk" style="width:${34 - i * 6}%;height:14px"></span><span class="sk" style="width:${22 + i * 5}%;height:10px;margin-top:10px"></span></div><span class="sk" style="width:120px;height:38px;border-radius:20px"></span></div>`).join('');
+const skeletonRows = (n, cols) => Array.from({ length: n }, () =>
+  `<tr>${Array.from({ length: cols }, (_, c) => `<td><span class="sk" style="width:${c ? 50 + (c * 13) % 40 : 70}%;height:12px"></span></td>`).join('')}</tr>`).join('');
+function emptyState(ic, title, text, actions = '', alert = false) {
+  return `<div class="empty-state${alert ? ' alert' : ''}"><div class="ring">${icon(ic)}</div><h3>${title}</h3>${text ? `<p>${text}</p>` : ''}${actions ? `<div class="actions">${actions}</div>` : ''}</div>`;
+}
+// Patent / exclusivity expiry: expired, within 12 months, or active
+function expStatus(d) {
+  if (!d) return '';
+  if (d < today) return 'expired';
+  const soon = String(+today.slice(0, 4) + 1) + today.slice(4);
+  return d < soon ? 'soon' : '';
+}
+
 // Checks the session, draws the nav bar and reveals the page; returns the user or null
 async function boot(active) {
   let me;
   try { me = await api('/api/auth?action=me'); }
   catch (e) {
-    if (e.message !== 'auth') document.querySelector('main').innerHTML = `<p class="err">Sunucu hatası: ${esc(e.message)}</p>`;
+    if (e.message !== 'auth') document.querySelector('main').innerHTML = emptyState('alert', 'Sunucuya ulaşılamadı', esc(e.message), '', true);
     document.body.classList.add('ready');
     return null;
   }
-  document.body.insertAdjacentHTML('afterbegin', `<nav class="nav">
-    <a class="brand" href="/">US Patent Database</a>
-    <div class="links">
-      <a href="/library.html" class="${active === 'library' ? 'on' : ''}">US Patent Kütüphanesi</a>
-      <a href="/profile.html" class="${active === 'profile' ? 'on' : ''}">${esc(me.displayName || me.username)}</a>
-      <a href="#" id="logout">Çıkış</a>
-    </div></nav>`);
-  $('logout').onclick = async e => { e.preventDefault(); await api('/api/auth?action=logout', { method: 'POST' }); location.href = '/login.html'; };
+  const name = me.displayName || me.username;
+  document.body.insertAdjacentHTML('afterbegin', `<header class="topbar"><nav class="nav" aria-label="Ana menü">
+    <a class="brand" href="/" aria-label="USPatents ana sayfa">${logoMark('nav')}${WORDMARK}</a>
+    <div class="navlinks">
+      <a href="/" class="${active === 'home' ? 'on' : ''}">Ana sayfa</a>
+      <a href="/library.html" class="${active === 'library' ? 'on' : ''}">Kütüphane</a>
+    </div>
+    <div class="usermenu">
+      <button class="userbtn" id="userBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenu">
+        <span class="avatar" id="navAvatar">${esc(initials(name))}</span><span class="uname" id="navName">${esc(name)}</span>${icon('chevDown')}
+      </button>
+      <div class="menu" id="userMenu" role="menu" hidden>
+        <div class="menu-head"><b id="menuName">${esc(name)}</b><small>@${esc(me.username)}</small></div>
+        <a href="/profile.html" role="menuitem">${icon('user')} Profil ve güvenlik</a>
+        <button id="logout" role="menuitem">${icon('logout')} Çıkış yap</button>
+      </div>
+    </div></nav></header>`);
+  const btn = $('userBtn'), menu = $('userMenu');
+  const setMenu = open => { menu.hidden = !open; btn.setAttribute('aria-expanded', open); };
+  btn.onclick = e => { e.stopPropagation(); setMenu(menu.hidden); };
+  document.addEventListener('click', e => { if (!e.target.closest('.usermenu')) setMenu(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
+  $('logout').onclick = async () => { await api('/api/auth?action=logout', { method: 'POST' }); location.href = '/login.html'; };
+  // "/" jumps to the page's search field
+  document.addEventListener('keydown', e => {
+    const s = document.querySelector('[data-search]');
+    if (e.key === '/' && s && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { e.preventDefault(); s.focus(); }
+  });
+  hydrateIcons();
   document.body.classList.add('ready');
   return me;
+}
+
+function setNavUser(name) {
+  $('navName').textContent = name; $('menuName').textContent = name; $('navAvatar').textContent = initials(name);
 }
 
 async function addMolecule(raw, form) {

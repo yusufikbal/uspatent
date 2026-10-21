@@ -3,31 +3,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Giriş · US Patent Database</title>
+<meta name="theme-color" content="#07080a">
+<title>Giriş · USPatents</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
-<main>
-  <form class="card login form" id="f">
-    <h1>US Patent Database</h1>
-    <label for="u">Kullanıcı adı</label>
-    <input id="u" autocomplete="username" required autofocus>
-    <label for="p">Şifre</label>
-    <input id="p" type="password" autocomplete="current-password" required>
-    <button class="primary" style="width:100%">Giriş yap</button>
-    <div class="msg err" id="msg"></div>
+<main class="auth">
+  <form class="panel auth-card" id="f">
+    <div class="auth-brand">
+      <span data-logo></span>
+      <span class="wm"><b>US</b>Patents</span>
+      <div class="muted" style="font-size:13px">Patent intelligence platformuna giriş yapın</div>
+    </div>
+    <label class="field"><span>Kullanıcı adı</span><input id="u" autocomplete="username" required autofocus></label>
+    <label class="field"><span>Şifre</span><input id="p" type="password" autocomplete="current-password" required></label>
+    <button class="primary lg" style="width:100%;margin-top:22px">Giriş yap</button>
+    <div class="msg err" id="msg" role="alert"></div>
+    <div class="auth-foot">Veriler FDA Orange Book'tan alınır</div>
   </form>
 </main>
 <script src="/assets/app.js"></script>
 <script>
+hydrateIcons();
 $('f').onsubmit = async e => {
   e.preventDefault();
+  const b = e.submitter || $('f').querySelector('button');
   $('msg').textContent = '';
+  b.disabled = true; b.textContent = 'Giriş yapılıyor…';
   try {
     await api('/api/auth?action=login', { method: 'POST', body: { username: $('u').value, password: $('p').value } });
     const next = param('next');
     location.href = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
-  } catch (err) { $('msg').textContent = err.message; }
+  } catch (err) {
+    $('msg').textContent = err.message;
+    b.disabled = false; b.textContent = 'Giriş yap';
+  }
 };
 </script>
 </body>

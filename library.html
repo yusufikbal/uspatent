@@ -3,31 +3,48 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>US Patent Kütüphanesi · US Patent Database</title>
+<meta name="theme-color" content="#07080a">
+<title>Kütüphane · USPatents</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/assets/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="gated">
 <main>
-  <div class="head">
-    <div><h1>US Patent Kütüphanesi</h1><div class="muted" id="count"></div></div>
-    <div class="row">
-      <button id="btnRefreshAll">Tüm verileri güncelle</button>
-      <a class="btn primary" href="/?new=1">Yeni analiz yap</a>
-      <button id="btnExport">Tümünü Excel'e aktar</button>
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Kütüphane</div>
+      <h1>US Patent Kütüphanesi</h1>
+      <div class="muted" id="count">&nbsp;</div>
+    </div>
+    <div class="actions">
+      <button id="btnRefreshAll" data-icon="refresh">Tüm verileri güncelle</button>
+      <button id="btnExport" data-icon="download">Tümünü Excel'e aktar</button>
+      <a class="btn primary" href="/?new=1" data-icon="plus">Yeni analiz yap</a>
     </div>
   </div>
-  <input class="grow" id="q" placeholder="Molekül ara" style="width:100%;margin-bottom:14px">
-  <div class="card" style="padding:4px 8px">
+  <div class="progress" id="progress" hidden><span></span></div>
+
+  <div class="panel toolbar">
+    <div class="with-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m21 21-4.3-4.3"/><circle cx="11" cy="11" r="7"/></svg>
+      <input id="q" data-search placeholder="Molekül veya etken madde ara" aria-label="Molekül ara">
+    </div>
+  </div>
+
+  <div class="panel table-panel">
     <table>
-      <thead><tr><th>Molekül</th><th>Ürün</th><th>Patent</th><th>Son güncelleme</th><th>Ekleyen</th></tr></thead>
+      <thead><tr><th>Molekül</th><th>Ürün</th><th>Patent</th><th>Son güncelleme</th><th>Ekleyen</th><th></th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
   </div>
 </main>
 <script src="/assets/app.js"></script>
 <script>
-let mols = [];
+let mols = [], statusNote = '';
+$('rows').innerHTML = skeletonRows(5, 6);
 
 (async () => {
   if (!(await boot('library'))) return;
@@ -39,32 +56,45 @@ let mols = [];
 function render() {
   const t = $('q').value.trim().toLowerCase();
   const list = mols.filter(m => !t || m.label.toLowerCase().includes(t) || m.ingredients.some(i => i.toLowerCase().includes(t)));
-  $('count').textContent = `${mols.length} molekül` + (t ? ` · ${list.length} sonuç` : '');
+  $('count').textContent = `${mols.length} molekül` + (t ? ` · ${list.length} sonuç` : '') + statusNote;
   $('rows').innerHTML = list.map(m => {
     const s = m.summary;
     return `<tr class="link" data-id="${esc(m.id)}">
-      <td><a href="/molecule.html?id=${encodeURIComponent(m.id)}">${esc(m.label)}</a></td>
-      <td>${s ? (s.products ? s.products : '<span class="err">FDA\'de onaylı ürün yok</span>') : '<span class="muted">—</span>'}</td>
-      <td>${s ? s.patents : '<span class="muted">—</span>'}</td>
-      <td class="muted">${s ? fmtTs(s.fetchedAt) : 'henüz açılmadı'}</td>
-      <td class="muted">${esc(m.createdBy || '')}</td></tr>`;
-  }).join('') || `<tr><td colspan="5" class="muted">Sonuç yok. <a href="/?new=1">Yeni analiz yap</a></td></tr>`;
+      <td><a class="mol-name" href="/molecule.html?id=${encodeURIComponent(m.id)}">${esc(m.label)}</a><span class="mol-ing">${esc(m.ingredients.join(' + '))}${m.form ? ' · ' + esc(m.form) : ''}</span></td>
+      <td data-label="Ürün">${s ? (s.products ? `<span class="num">${s.products}</span>` : '<span class="pill red">FDA\'de onaylı ürün yok</span>') : '<span class="muted">—</span>'}</td>
+      <td data-label="Patent">${s ? `<span class="num">${s.patents}</span>` : '<span class="muted">—</span>'}</td>
+      <td data-label="Son güncelleme" class="muted">${s ? fmtTs(s.fetchedAt) : 'henüz açılmadı'}</td>
+      <td data-label="Ekleyen">${m.createdBy ? `<span class="who"><span class="avatar xs">${esc(initials(m.createdBy))}</span>${esc(m.createdBy)}</span>` : '<span class="muted">—</span>'}</td>
+      <td class="go-cell"><span class="go">${icon('chevRight')}</span></td></tr>`;
+  }).join('') || `<tr><td colspan="6">${t
+    ? emptyState('search', 'Sonuç bulunamadı', `“${esc($('q').value.trim())}” kütüphanede yok. Yeni bir analiz olarak ekleyebilirsiniz.`, `<a class="btn primary" href="/?new=1">${icon('plus')} Yeni analiz yap</a>`)
+    : emptyState('molecule', 'Kütüphane boş', 'İlk molekülünüzü ekleyerek başlayın.', `<a class="btn primary" href="/?new=1">${icon('plus')} Yeni analiz yap</a>`)}</td></tr>`;
 }
 $('q').oninput = render;
 $('rows').onclick = e => { const tr = e.target.closest('tr[data-id]'); if (tr && !e.target.closest('a')) location.href = '/molecule.html?id=' + encodeURIComponent(tr.dataset.id); };
 
+function setProgress(done, total) {
+  $('progress').hidden = total === 0;
+  $('progress').firstElementChild.style.width = total ? (100 * done / total) + '%' : '0';
+}
+const label = (b, ic, text) => { b.innerHTML = icon(ic) + text; };
+
 // Re-fetches every molecule from the FDA API one by one (openFDA rate limits) and refreshes the table counts
 $('btnRefreshAll').onclick = async () => {
   const b = $('btnRefreshAll'), failed = [];
-  b.disabled = true; $('btnExport').disabled = true;
+  b.disabled = true; $('btnExport').disabled = true; statusNote = '';
   for (const [i, m] of mols.entries()) {
-    b.textContent = `Güncelleniyor ${i + 1}/${mols.length}…`;
+    label(b, 'refresh', `Güncelleniyor ${i + 1}/${mols.length}…`);
+    setProgress(i, mols.length);
     try { await syncSummary(m, await loadFda(m, true)); } catch (e) { failed.push(m.label); }
     render();
   }
+  setProgress(mols.length, mols.length);
+  setTimeout(() => setProgress(0, 0), 900);
   b.disabled = false; $('btnExport').disabled = false;
-  b.textContent = 'Tüm verileri güncelle';
-  $('count').textContent += failed.length ? ` · güncellenemedi: ${failed.join(', ')}` : ` · tümü güncellendi (${fmtTs(new Date().toISOString())})`;
+  label(b, 'refresh', 'Tüm verileri güncelle');
+  statusNote = failed.length ? ` · güncellenemedi: ${failed.join(', ')}` : ` · tümü güncellendi (${fmtTs(new Date().toISOString())})`;
+  render();
 };
 
 $('btnExport').onclick = async () => {
@@ -73,14 +103,14 @@ $('btnExport').onclick = async () => {
   try {
     const notes = await api('/api/notes');
     for (const [i, m] of mols.entries()) {
-      b.textContent = `Hazırlanıyor ${i + 1}/${mols.length}…`;
+      label(b, 'download', `Hazırlanıyor ${i + 1}/${mols.length}…`);
       const { groups } = await loadFda(m);
       rows.push(...patentRows(m, groups, notes));
       excl.push(...exclRows(m, groups));
     }
-    downloadExcel(rows, 'US_Patent_Database', excl);
+    downloadExcel(rows, 'USPatents', excl);
   } catch (e) { alert('Hata: ' + e.message); }
-  b.disabled = false; b.textContent = "Tümünü Excel'e aktar";
+  b.disabled = false; label(b, 'download', "Tümünü Excel'e aktar");
 };
 </script>
 </body>

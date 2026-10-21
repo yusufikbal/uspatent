@@ -3,53 +3,77 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Molekül · US Patent Database</title>
+<meta name="theme-color" content="#07080a">
+<title>Molekül · USPatents</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/assets/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="gated">
 <main>
-  <div class="muted" style="margin-bottom:6px"><a href="/library.html">← US Patent Kütüphanesi</a></div>
-  <div class="head">
-    <div><h1 id="title">…</h1><div class="muted" id="meta"></div></div>
-    <div class="row">
-      <button id="btnRefresh">Verileri güncelle</button>
-      <button class="primary" id="btnExport">Excel'e aktar</button>
-      <button class="danger" id="btnDelete">Sil</button>
+  <a class="crumb" href="/library.html" data-icon="arrowLeft">US Patent Kütüphanesi</a>
+  <div class="page-head">
+    <div>
+      <div class="eyebrow">Molekül analizi</div>
+      <h1 id="title"><span class="sk" style="width:260px;height:28px"></span></h1>
+      <div class="muted" id="meta">&nbsp;</div>
+    </div>
+    <div class="actions">
+      <button id="btnRefresh" data-icon="refresh">Verileri güncelle</button>
+      <button class="primary" id="btnExport" data-icon="download">Excel'e aktar</button>
+      <button class="danger" id="btnDelete" data-icon="trash">Sil</button>
     </div>
   </div>
-  <div class="row" style="margin-bottom:14px">
-    <input class="grow" id="fText" placeholder="Patent no veya ürün ara">
-    <select id="fBrand"></select>
-    <label class="muted"><input type="checkbox" id="fHideExp"> Süresi dolanları gizle</label>
-    <button id="btnOpenAll">Tümünü aç</button>
-    <button id="btnCloseAll">Tümünü kapat</button>
+
+  <div class="panel toolbar">
+    <div class="with-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m21 21-4.3-4.3"/><circle cx="11" cy="11" r="7"/></svg>
+      <input id="fText" data-search placeholder="Patent no veya ürün ara" aria-label="Patent no veya ürün ara">
+    </div>
+    <select id="fBrand" aria-label="Ürün filtresi"></select>
+    <label class="switch"><input type="checkbox" id="fHideExp"> Süresi dolanları gizle</label>
+    <div class="seg">
+      <button id="btnOpenAll">Tümünü aç</button>
+      <button id="btnCloseAll">Tümünü kapat</button>
+    </div>
   </div>
-  <div id="out"><p class="muted">Yükleniyor…</p></div>
+  <div id="out"></div>
 </main>
 <script src="/assets/app.js"></script>
 <script>
 let mol, data, notes = {}, openKeys = null;
 const timers = {};
+$('out').innerHTML = skeletonCards(4);
 
 (async () => {
   if (!(await boot('library'))) return;
   const [mols, n] = await Promise.all([api('/api/molecules'), api('/api/notes')]);
   mol = mols.find(m => m.id === param('id'));
-  if (!mol) { $('out').innerHTML = '<p>Molekül bulunamadı. <a href="/library.html">Kütüphaneye dön</a></p>'; return; }
+  if (!mol) {
+    $('title').textContent = 'Molekül bulunamadı';
+    $('out').innerHTML = emptyState('molecule', 'Bu molekül kütüphanede yok', 'Silinmiş olabilir ya da bağlantı hatalı.', `<a class="btn" href="/library.html">${icon('arrowLeft')} Kütüphaneye dön</a>`);
+    return;
+  }
   notes = n;
-  document.title = mol.label + ' · US Patent Database';
+  document.title = mol.label + ' · USPatents';
   $('title').textContent = mol.label;
   await load(false);
 })();
 
 async function load(force) {
-  $('out').innerHTML = '<p class="muted">FDA Orange Book sorgulanıyor…</p>';
+  $('out').innerHTML = skeletonCards(4);
+  $('btnRefresh').disabled = true;
   try { data = await loadFda(mol, force); }
-  catch (e) { $('out').innerHTML = `<p class="err">FDA API hatası: ${esc(e.message)}</p>`; return; }
+  catch (e) {
+    $('btnRefresh').disabled = false;
+    $('out').innerHTML = emptyState('alert', 'FDA Orange Book\'a ulaşılamadı', esc(e.message), `<button onclick="load(true)">${icon('refresh')} Tekrar dene</button>`, true);
+    return;
+  }
+  $('btnRefresh').disabled = false;
   $('meta').textContent = `Son Güncelleme Tarihi: ${fmtTs(data.at)}`;
-  const sel = $('fBrand');
-  sel.innerHTML = '<option value="">Tüm ürünler</option>' + data.groups.map(g => `<option>${esc(g.key)}</option>`).join('');
+  $('fBrand').innerHTML = '<option value="">Tüm ürünler</option>' + data.groups.map(g => `<option>${esc(g.key)}</option>`).join('');
   if (!openKeys) openKeys = new Set();  // every product card starts closed
   render();
   syncSummary(mol, data).catch(() => {});
@@ -74,44 +98,60 @@ function noteMeta(n) { return n ? `${esc(n.by)} · ${fmtTs(n.at)}` : ''; }
 
 function render() {
   if (!data.groups.length) {
-    $('out').innerHTML = `<div class="card err"><b>FDA'de onaylı ürün yoktur.</b> “${esc(mol.label)}” için FDA Orange Book'ta kayıt bulunamadı; listelenmiş US patenti ve exclusivity de yok.</div>`;
+    $('out').innerHTML = `<div class="panel">${emptyState('alert', "FDA'de onaylı ürün yoktur",
+      `“${esc(mol.label)}” için FDA Orange Book'ta kayıt bulunamadı; listelenmiş US patenti ve exclusivity de yok.`, '', true)}</div>`;
     return;
   }
   let html = '';
   const searching = !!$('fText').value.trim();
   for (const g of view()) {
     const open = searching || openKeys.has(g.key);
-    html += `<details class="card prod" data-key="${esc(g.key)}"${open ? ' open' : ''}>
+    html += `<details class="prod" data-key="${esc(g.key)}"${open ? ' open' : ''}>
       <summary>
-        <div class="phead"><h3>${esc(g.brand)} <small>· ${esc(g.nda)}</small></h3>
-          <span class="row"><span class="muted counts">${g.doses.length} doz · ${g.patents.length} patent · ${g.excl.length} exclusivity</span><span class="approval">İlk onay: <b>${fmtApproval(g.approval)}</b></span></span></div>
-        <div class="dchips">${g.doses.map(d => `<span class="dchip pc${pc(g, d.no)}">${esc(d.no)} · ${esc(d.str)}</span>`).join('')}</div>
-      </summary>`;
-    if (!g.patents.length) html += '<p class="muted">Listelenmiş patent yok.</p>';
+        <div class="phead">
+          <span class="chev">${icon('chevRight')}</span>
+          <div class="ptitle">
+            <h3>${esc(g.brand)} <span class="nda">${esc(g.nda)}</span></h3>
+            <div class="pstats">
+              <span class="pill"><b>${g.doses.length}</b> doz</span>
+              <span class="pill"><b>${g.patents.length}</b> patent</span>
+              <span class="pill"><b>${g.excl.length}</b> exclusivity</span>
+            </div>
+          </div>
+          <span class="approval"><small>İlk onay</small><b>${fmtApproval(g.approval)}</b></span>
+        </div>
+      </summary>
+      <div class="pbody">
+        <div class="dchips">${g.doses.map(d => `<span class="dchip pc${pc(g, d.no)}"><i>${esc(d.no)}</i>${esc(d.str)}</span>`).join('')}</div>
+        <div class="sect" lang="en">US Patents <span class="count">${g.patents.length}</span></div>`;
+    if (!g.patents.length) html += '<p class="subtle">Orange Book\'ta listelenmiş patent yok.</p>';
     else {
       html += '<table><thead lang="en"><tr><th>US Patent No.</th><th>Expiration Date</th><th>Patent Yorumu</th></tr></thead><tbody>';
       for (const p of g.patents) {
         const n = notes[p.pn];
-        html += `<tr><td class="pn">US ${esc(p.pn)}</td>
-          <td class="exp ${(p.ped || p.exp) < today ? 'expired' : ''}">${fmtDate(p.exp)}${p.ped ? `<span class="sub">PED: ${fmtDate(p.ped)}</span>` : ''}</td>
-          <td class="note"><textarea data-pn="${esc(p.pn)}" placeholder="Yorum ekle…">${esc(n?.text || '')}</textarea><span class="sub" data-meta="${esc(p.pn)}">${noteMeta(n)}</span></td></tr>`;
+        html += `<tr><td class="pn"><span class="us">US</span>${esc(p.pn)}</td>
+          <td class="exp"><span class="status ${expStatus(p.ped || p.exp)}">${fmtDate(p.exp)}</span>${p.ped ? `<span class="sub">PED ${fmtDate(p.ped)}</span>` : ''}</td>
+          <td class="note"><textarea data-pn="${esc(p.pn)}" rows="1" placeholder="Yorum ekle…" aria-label="US ${esc(p.pn)} yorumu">${esc(n?.text || '')}</textarea><span class="note-meta" data-meta="${esc(p.pn)}">${noteMeta(n)}</span></td></tr>`;
       }
       html += '</tbody></table>';
     }
-    html += '<h4 class="sect" lang="en">Exclusivity Data</h4>';
-    if (!g.excl.length) html += '<p class="muted">Orange Book\'ta listelenmiş exclusivity yok.</p>';
+    html += `<div class="sect" lang="en">Exclusivity Data <span class="count">${g.excl.length}</span></div>`;
+    if (!g.excl.length) html += '<p class="subtle">Orange Book\'ta listelenmiş exclusivity yok.</p>';
     else {
       html += '<table><thead lang="en"><tr><th>Product No</th><th>Exclusivity Code</th><th>Tanım</th><th>Exclusivity Expiration</th></tr></thead><tbody>';
       for (const [i, x] of g.excl.entries()) {
         const first = i === 0 || g.excl[i - 1].no !== x.no;
-        html += `<tr class="pc${pc(g, x.no)} prow${first && i ? ' pfirst' : ''}"><td class="pn"><span class="dchip pc${pc(g, x.no)}">${esc(x.no)}</span><span class="sub">${esc(x.str)}</span></td><td class="pn">${esc(x.code)}</td>
-          <td>${esc(exclDef(x.code))}</td><td class="exp ${x.exp < today ? 'expired' : ''}">${fmtDate(x.exp)}</td></tr>`;
+        html += `<tr class="pc${pc(g, x.no)} prow${first && i ? ' pfirst' : ''}">
+          <td><span class="dchip solo pc${pc(g, x.no)}"><i>${esc(x.no)}</i></span><span class="sub">${esc(x.str)}</span></td>
+          <td class="code">${esc(x.code)}</td>
+          <td class="muted">${esc(exclDef(x.code))}</td>
+          <td class="exp"><span class="status ${expStatus(x.exp)}">${fmtDate(x.exp)}</span></td></tr>`;
       }
       html += '</tbody></table>';
     }
-    html += '</details>';
+    html += '</div></details>';
   }
-  $('out').innerHTML = html || '<p class="muted">Filtrelere uyan sonuç yok.</p>';
+  $('out').innerHTML = html || `<div class="panel">${emptyState('filter', 'Filtrelere uyan sonuç yok', 'Arama metnini veya filtreleri değiştirmeyi deneyin.')}</div>`;
 }
 
 // Remember which products are open so filtering doesn't collapse them ('toggle' doesn't bubble, hence capture)
@@ -128,7 +168,7 @@ $('out').addEventListener('input', e => {
   if (!pn) return;
   const text = e.target.value;
   document.querySelectorAll(`textarea[data-pn="${pn}"]`).forEach(t => { if (t !== e.target) t.value = text; });
-  document.querySelectorAll(`[data-meta="${pn}"]`).forEach(s => s.textContent = 'kaydediliyor…');
+  document.querySelectorAll(`[data-meta="${pn}"]`).forEach(s => { s.textContent = 'kaydediliyor…'; s.classList.remove('err'); });
   clearTimeout(timers[pn]);
   timers[pn] = setTimeout(async () => {
     try {
