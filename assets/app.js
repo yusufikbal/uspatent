@@ -51,7 +51,10 @@ async function addMolecule(raw, form) {
 
 /* ---------- FDA Orange Book ---------- */
 const FDA = 'https://api.fda.gov/drug/orangebook.json';
-const unit = s => String(s).replace(/(\d)\s*GM\b/g, '$1 g').replace(/(\d)\s*MCG\b/g, '$1 mcg').replace(/(\d)\s*MG\b/g, '$1 mg').replace(/(\d)\s*ML\b/g, '$1 mL').replace(/\/ML\b/g, '/mL');
+const unit = s => String(s).replace(/(\d)\s*GM\b/g, '$1 g').replace(/(\d)\s*MCG\b/g, '$1 mcg').replace(/(\d)\s*MG\b/g, '$1 mg').replace(/(\d)\s*ML\b/g, '$1 mL').replace(/\/ML\b/g, '/mL')
+  .replace(/(\d+(?:\.\d+)?)\s*%/g, '%$1');
+// "TABLET, EXTENDED RELEASE" -> "Tablet, extended release"
+const formLabel = f => { const s = String(f || '').toLowerCase().trim(); return s ? s[0].toUpperCase() + s.slice(1) : ''; };
 
 async function fetchFda(m) {
   const q = m.ingredients.map(i => `products.active_ingredients.name:"${i}"`).join(' AND ');
@@ -76,7 +79,7 @@ function buildGroups(m, recs) {
     const key = p.brand_name + ' · ' + p.application_type + p.application_number;
     if (!groups.has(key)) groups.set(key, { key, brand: p.brand_name, nda: p.application_type + p.application_number, doses: [], pats: {}, excl: [], approval: '', pre1982: false });
     const g = groups.get(key);
-    const str = ings.map(i => unit(i.strength)).join(' / ');
+    const str = [formLabel(p.dosage_form), ings.map(i => unit(i.strength)).join(' / ')].filter(Boolean).join(' ');
     g.doses.push({ no: r.product_number, str });
     if (r.approved_prior_to_1982) g.pre1982 = true;
     else if (r.approval_date && (!g.approval || r.approval_date < g.approval)) g.approval = r.approval_date;
@@ -126,7 +129,7 @@ function exclDef(code) {
 }
 
 // Processed results are cached per browser; "Verileri güncelle" forces a fresh API call
-const cacheKey = m => 'usdb.fda.v2.' + m.ingredients.join('+') + '|' + (m.form || '');
+const cacheKey = m => 'usdb.fda.v3.' + m.ingredients.join('+') + '|' + (m.form || '');
 async function loadFda(m, force) {
   if (!force) { try { const c = JSON.parse(localStorage.getItem(cacheKey(m))); if (c) return c; } catch (e) {} }
   const d = await fetchFda(m);
@@ -136,7 +139,7 @@ async function loadFda(m, force) {
 
 /* ---------- Excel ---------- */
 function patentRows(m, groups, notes) {
-  if (!groups.length) return [{ 'Molekül': m.label, 'Ürün': "FDA Orange Book'ta bulunamadı" }];
+  if (!groups.length) return [{ 'Molekül': m.label, 'Ürün': "FDA'de onaylı ürün yoktur (Orange Book'ta kayıt yok)" }];
   return groups.flatMap(g => g.patents.map(p => ({
     'Molekül': m.label, 'Ürün': g.brand, 'NDA': g.nda, 'İlk Onay Tarihi': fmtApproval(g.approval), 'US Patent No.': 'US ' + p.pn,
     'Expiration Date': fmtDate(p.exp), 'PED Expiration': fmtDate(p.ped), 'Patent Yorumu': notes[p.pn]?.text || '',

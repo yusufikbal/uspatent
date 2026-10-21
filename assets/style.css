@@ -34,6 +34,15 @@ h1{font-size:22px;margin:0 0 4px}
 .phead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:4px}
 .phead h3{margin:0}
 .approval{background:var(--soft);color:var(--text);border:1px solid var(--accent);border-radius:6px;padding:4px 10px;font-size:13px}
+/* Per-product colours: dose chips in the card header match the exclusivity rows */
+:root{--p0:#1f5fbf;--p1:#c2410c;--p2:#15803d;--p3:#7e22ce;--p4:#b45309;--p5:#0e7490}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--p0:#6ea2f5;--p1:#fb923c;--p2:#4ade80;--p3:#c084fc;--p4:#fbbf24;--p5:#22d3ee}}
+.pc0{--pc:var(--p0)}.pc1{--pc:var(--p1)}.pc2{--pc:var(--p2)}.pc3{--pc:var(--p3)}.pc4{--pc:var(--p4)}.pc5{--pc:var(--p5)}
+.dchips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}
+.dchip{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:5px;color:var(--pc);border:1px solid var(--pc);background:color-mix(in srgb,var(--pc) 10%,transparent);white-space:nowrap}
+tr.prow td{background:color-mix(in srgb,var(--pc) 6%,transparent)}
+tr.prow td:first-child{box-shadow:inset 3px 0 0 var(--pc)}
+tr.pfirst td{border-top:2px solid var(--border)}
 .sect{margin:18px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
 
 table{border-collapse:collapse;width:100%}

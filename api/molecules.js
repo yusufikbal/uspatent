@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { redis, hgetallObj, requireUser, handle } from './_lib.js';
 
 const KEY = 'molecules';
+const DEFAULT_OWNER = 'Yusuf İkbal Aldemir';
 const DEFAULTS = [
   { id: 'm1', label: 'Empagliflozin + Linagliptin + Metformin (XR)', ingredients: ['EMPAGLIFLOZIN', 'LINAGLIPTIN', 'METFORMIN'], form: 'EXTENDED RELEASE' },
   { id: 'm2', label: 'Nifedipine + Lidocaine', ingredients: ['NIFEDIPINE', 'LIDOCAINE'], form: '' },
@@ -18,10 +19,18 @@ export default handle(async (req, res) => {
 
   if (req.method === 'GET') {
     if (!(await redis('EXISTS', 'seeded:molecules'))) {
-      for (const m of DEFAULTS) await redis('HSETNX', KEY, m.id, JSON.stringify({ ...m, createdAt: new Date().toISOString() }));
+      for (const m of DEFAULTS) await redis('HSETNX', KEY, m.id, JSON.stringify({ ...m, createdBy: DEFAULT_OWNER, createdAt: new Date().toISOString() }));
       await redis('SET', 'seeded:molecules', '1');
     }
-    return res.json(Object.values(await hgetallObj(KEY)).sort((a, b) => a.label.localeCompare(b.label, 'tr')));
+    const all = await hgetallObj(KEY);
+    // The first three molecules were seeded before "Ekleyen" existed; credit them once
+    for (const d of DEFAULTS) {
+      if (all[d.id] && !all[d.id].createdBy) {
+        all[d.id].createdBy = DEFAULT_OWNER;
+        await redis('HSET', KEY, d.id, JSON.stringify(all[d.id]));
+      }
+    }
+    return res.json(Object.values(all).sort((a, b) => a.label.localeCompare(b.label, 'tr')));
   }
 
   if (req.method === 'POST') {

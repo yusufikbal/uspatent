@@ -43,7 +43,7 @@ function render() {
     const s = m.summary;
     return `<tr class="link" data-id="${esc(m.id)}">
       <td><a href="/molecule.html?id=${encodeURIComponent(m.id)}">${esc(m.label)}</a></td>
-      <td>${s ? (s.products ? s.products : '<span class="err">Orange Book\'ta yok</span>') : '<span class="muted">—</span>'}</td>
+      <td>${s ? (s.products ? s.products : '<span class="err">FDA\'de onaylı ürün yok</span>') : '<span class="muted">—</span>'}</td>
       <td>${s ? s.patents : '<span class="muted">—</span>'}</td>
       <td class="muted">${s ? fmtTs(s.fetchedAt) : 'henüz açılmadı'}</td>
       <td class="muted">${esc(m.createdBy || '')}</td></tr>`;

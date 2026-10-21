@@ -69,18 +69,21 @@ function view() {
   }).filter(g => !t || g.patents.length);
 }
 
+// Colour index for a product number, stable within its product card
+const pc = (g, no) => Math.max(0, g.doses.findIndex(d => d.no === no)) % 6;
+
 function noteMeta(n) { return n ? `${esc(n.by)} · ${fmtTs(n.at)}` : ''; }
 
 function render() {
   if (!data.groups.length) {
-    $('out').innerHTML = `<div class="card err"><b>${esc(mol.label)}</b> FDA Orange Book'ta bulunamadı — listelenmiş ürün ve US patenti yok.</div>`;
+    $('out').innerHTML = `<div class="card err"><b>FDA'de onaylı ürün yoktur.</b> “${esc(mol.label)}” için FDA Orange Book'ta kayıt bulunamadı; listelenmiş US patenti ve exclusivity de yok.</div>`;
     return;
   }
   let html = '';
   for (const g of view()) {
     html += `<div class="card">
       <div class="phead"><h3>${esc(g.brand)} <small>· ${esc(g.nda)}</small></h3><span class="approval">İlk onay: <b>${fmtApproval(g.approval)}</b></span></div>
-      <div class="muted" style="font-size:12px;margin-bottom:8px">${g.doses.map(d => esc(d.str)).join(', ')}</div>`;
+      <div class="dchips">${g.doses.map(d => `<span class="dchip pc${pc(g, d.no)}">${esc(d.no)} · ${esc(d.str)}</span>`).join('')}</div>`;
     if (!g.patents.length) html += '<p class="muted">Listelenmiş patent yok.</p>';
     else {
       html += '<table><thead><tr><th>US Patent No.</th><th>Expiration Date</th><th>Patent Yorumu</th></tr></thead><tbody>';
@@ -96,8 +99,9 @@ function render() {
     if (!g.excl.length) html += '<p class="muted">Orange Book\'ta listelenmiş exclusivity yok.</p>';
     else {
       html += '<table><thead><tr><th>Product No</th><th>Exclusivity Code</th><th>Tanım</th><th>Exclusivity Expiration</th></tr></thead><tbody>';
-      for (const x of g.excl) {
-        html += `<tr><td class="pn">${esc(x.no)}<span class="sub">${esc(x.str)}</span></td><td class="pn">${esc(x.code)}</td>
+      for (const [i, x] of g.excl.entries()) {
+        const first = i === 0 || g.excl[i - 1].no !== x.no;
+        html += `<tr class="pc${pc(g, x.no)} prow${first && i ? ' pfirst' : ''}"><td class="pn"><span class="dchip pc${pc(g, x.no)}">${esc(x.no)}</span><span class="sub">${esc(x.str)}</span></td><td class="pn">${esc(x.code)}</td>
           <td>${esc(exclDef(x.code))}</td><td class="exp ${x.exp < today ? 'expired' : ''}">${fmtDate(x.exp)}</td></tr>`;
       }
       html += '</tbody></table>';
