@@ -6,6 +6,11 @@ const DB_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST
 const ITER = 210000;
 const SESSION_DAYS = 7;
 
+// TEMPORARY: login is switched off; requests without a valid session run as a guest user.
+// Set to false (and remove the redirect in login.html) to turn login back on.
+export const AUTH_DISABLED = true;
+const GUEST = { username: 'misafir', displayName: 'Misafir', email: '', v: 1, guest: true };
+
 export async function redis(...cmd) {
   if (!DB_URL || !DB_TOKEN) throw new Error('Veritabanı bağlı değil: Upstash Redis ortam değişkenleri eksik.');
   const r = await fetch(DB_URL, {
@@ -74,6 +79,7 @@ export async function requireUser(req, res) {
     }
   }
   const user = s && s.exp > Date.now() ? await getUser(s.u) : null;
+  if ((!user || user.v !== s.v) && AUTH_DISABLED) return { ...GUEST };
   if (!user || user.v !== s.v) { res.status(401).json({ error: 'Oturum açmanız gerekiyor.' }); return null; }
   return user;
 }

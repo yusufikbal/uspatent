@@ -27,6 +27,8 @@
 </main>
 <script src="/assets/app.js"></script>
 <script>
+// TEMPORARY: login is switched off (see AUTH_DISABLED in api/_lib.js); go straight to the home page
+location.replace('/');
 hydrateIcons();
 $('f').onsubmit = async e => {
   e.preventDefault();

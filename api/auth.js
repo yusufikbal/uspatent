@@ -25,6 +25,8 @@ export default handle(async (req, res) => {
 
   if (action === 'me' && req.method === 'GET') return res.json(publicUser(user));
 
+  if (user.guest) return res.status(403).json({ error: 'Giriş geçici olarak kapalı; misafir kullanıcı profil değiştiremez.' });
+
   if (action === 'profile' && req.method === 'PUT') {
     const displayName = String(body.displayName || '').trim(), email = String(body.email || '').trim();
     if (!displayName || displayName.length > 80) return res.status(400).json({ error: 'Ad Soyad 1–80 karakter olmalı.' });
